@@ -52,7 +52,7 @@ export const mockGuru: Guru[] = [
     id: 'guru-1',
     nama: 'Muammar',
     nip: 'MWA-2026-001',
-    jabatan: 'Guru Tahfidz',
+    jabatan: 'Ustadz',
     statusKepegawaian: 'tetap',
     email: 'muammarbs24@gmail.com',
     telepon: '081234567890',
@@ -68,6 +68,13 @@ export const mockGuru: Guru[] = [
 
 export function getLoggedInGuru(): Guru {
   if (typeof window !== 'undefined') {
+    const savedUser = localStorage.getItem('muallim_guru_user');
+    if (savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        if (parsed && parsed.id) return parsed;
+      } catch (e) {}
+    }
     const loggedId = localStorage.getItem('logged_in_guru_id');
     const loggedEmail = localStorage.getItem('logged_in_guru_email');
     if (loggedId) {
@@ -87,7 +94,7 @@ export function getLoggedInGuru(): Guru {
     id: 'guru-demo',
     nama: 'Ustadz (Belum Ada Data Guru)',
     nip: 'MWA-000',
-    jabatan: 'Guru Pengajar',
+    jabatan: 'Ustadz',
     statusKepegawaian: 'tetap',
     email: 'guru@muallim.sch.id',
     telepon: '',

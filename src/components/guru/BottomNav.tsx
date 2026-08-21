@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Home, Calendar, Activity, BarChart2, User, BookOpen, Bell, LogOut } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { currentGuru } from '@/lib/mockData';
 import { getInitials } from '@/lib/utils';
+import type { Guru } from '@/types';
 
 const navItems = [
   { href: '/guru/beranda', label: 'Beranda', icon: Home },
@@ -19,6 +20,19 @@ export default function GuruNav() {
   const pathname = usePathname();
   const router = useRouter();
   const [showLogout, setShowLogout] = useState(false);
+  const [activeGuru, setActiveGuru] = useState<Guru>(currentGuru);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('muallim_guru_user');
+      if (savedUser) {
+        try {
+          const parsed = JSON.parse(savedUser);
+          if (parsed && parsed.id) setActiveGuru(parsed);
+        } catch (e) {}
+      }
+    }
+  }, []);
 
   const handleConfirmLogout = () => {
     if (typeof document !== 'undefined') {
@@ -76,12 +90,12 @@ export default function GuruNav() {
           marginTop: 'auto',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
-            <div className="avatar avatar-sm">{getInitials(currentGuru.nama)}</div>
+            <div className="avatar avatar-sm">{getInitials(activeGuru.nama)}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {currentGuru.nama.split(',')[0]}
+                {activeGuru.nama.split(',')[0]}
               </div>
-              <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)' }}>{currentGuru.jabatan}</div>
+              <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)' }}>{activeGuru.jabatan || 'Ustadz'}</div>
             </div>
           </div>
           <button
