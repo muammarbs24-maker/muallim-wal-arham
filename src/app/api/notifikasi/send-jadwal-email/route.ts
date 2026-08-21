@@ -49,7 +49,7 @@ export async function POST(request: Request) {
 
     const scheduleRows = DAYS_ORDER.map((day) => {
       const dayItems = (jadwalList || []).filter(
-        (j) => j.hari && j.hari.trim().toLowerCase() === day.toLowerCase()
+        (j) => j.hari && (j.hari.trim().toLowerCase() === day.toLowerCase() || (day === 'Minggu' && j.hari.trim().toLowerCase() === 'ahad'))
       );
 
       // Hari Libur (Tidak ada jadwal mengajar)
