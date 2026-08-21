@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       guruNama,
       guruEmail,
       jadwalList,
-      appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://walarham.vercel.app',
+      appUrl,
       leadMinutes = 60,
     }: {
       guruNama: string;
@@ -29,6 +29,10 @@ export async function POST(request: Request) {
       appUrl?: string;
       leadMinutes?: number;
     } = await request.json();
+
+    const safeAppUrl = (!appUrl || appUrl.includes('localhost') || appUrl.includes('127.0.0.1'))
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'https://walarham.vercel.app').replace(/\/$/, '')
+      : appUrl.replace(/\/$/, '');
 
     if (!guruEmail || !guruNama) {
       return NextResponse.json(
@@ -118,7 +122,7 @@ export async function POST(request: Request) {
       }).join('');
     }).join('');
 
-    const directJadwalLink = `${appUrl}/guru/jadwal`;
+    const directJadwalLink = `${safeAppUrl}/guru/jadwal`;
 
     const htmlTemplate = `<!DOCTYPE html>
 <html lang="id">

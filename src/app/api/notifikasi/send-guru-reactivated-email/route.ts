@@ -6,8 +6,12 @@ export async function POST(request: Request) {
     const {
       guruNama,
       guruEmail,
-      appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://walarham.vercel.app',
+      appUrl,
     } = await request.json();
+
+    const safeAppUrl = (!appUrl || appUrl.includes('localhost') || appUrl.includes('127.0.0.1'))
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'https://walarham.vercel.app').replace(/\/$/, '')
+      : appUrl.replace(/\/$/, '');
 
     if (!guruEmail || !guruNama) {
       return NextResponse.json(
@@ -23,7 +27,7 @@ export async function POST(request: Request) {
     const emailFrom = process.env.EMAIL_FROM || `"Yayasan Mu'Allim Wal Arham" <${smtpUser || 'noreply@muallim.sch.id'}>`;
 
     const subject = `✅ Akun Mengajar Anda Telah Diaktifkan Kembali — Yayasan Tahfidz Mu'Allim Wal Arham`;
-    const loginLink = `${appUrl}/guru/beranda`;
+    const loginLink = `${safeAppUrl}/guru/beranda`;
 
     const htmlContent = `<!DOCTYPE html>
 <html lang="id">

@@ -11,7 +11,7 @@ export async function POST(request: Request) {
       requesterJadwal,
       targetJadwal,
       catatan = '',
-      appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://walarham.vercel.app',
+      appUrl,
     }: {
       type: 'request' | 'approved' | 'rejected';
       targetEmail: string;
@@ -22,6 +22,10 @@ export async function POST(request: Request) {
       catatan?: string;
       appUrl?: string;
     } = await request.json();
+
+    const safeAppUrl = (!appUrl || appUrl.includes('localhost') || appUrl.includes('127.0.0.1'))
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'https://walarham.vercel.app').replace(/\/$/, '')
+      : appUrl.replace(/\/$/, '');
 
     if (!targetEmail || !targetNama || !requesterNama) {
       return NextResponse.json(
@@ -43,7 +47,7 @@ export async function POST(request: Request) {
         ? `✅ Permintaan Tukar Jadwal Disetujui — Mu'Allim Attendance`
         : `❌ Permintaan Tukar Jadwal Ditolak — Mu'Allim Attendance`;
 
-    const jadwalLink = `${appUrl}/guru/jadwal`;
+    const jadwalLink = `${safeAppUrl}/guru/jadwal`;
 
     const htmlTemplate = `<!DOCTYPE html>
 <html lang="id">

@@ -3,7 +3,11 @@ import nodemailer from 'nodemailer';
 
 export async function POST(request: Request) {
   try {
-    const { nama, nip, email, password, loginUrl = 'http://localhost:3000' } = await request.json();
+    const { nama, nip, email, password, loginUrl } = await request.json();
+
+    const safeLoginUrl = (!loginUrl || loginUrl.includes('localhost') || loginUrl.includes('127.0.0.1'))
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'https://walarham.vercel.app')
+      : loginUrl;
 
     if (!email || !nama || !nip || !password) {
       return NextResponse.json(
@@ -85,7 +89,7 @@ export async function POST(request: Request) {
 
               <!-- Login CTA Button -->
               <div style="text-align: center; margin: 26px 0 22px;">
-                <a href="${loginUrl}" target="_blank" style="display: inline-block; background-color: #1B6B4A; color: #ffffff; padding: 13px 36px; border-radius: 10px; font-weight: 700; font-size: 14px; text-decoration: none; box-shadow: 0 4px 14px rgba(27, 107, 74, 0.35);">
+                <a href="${safeLoginUrl}" target="_blank" style="display: inline-block; background-color: #1B6B4A; color: #ffffff; padding: 13px 36px; border-radius: 10px; font-weight: 700; font-size: 14px; text-decoration: none; box-shadow: 0 4px 14px rgba(27, 107, 74, 0.35);">
                   Masuk ke Aplikasi Absensi &rarr;
                 </a>
               </div>

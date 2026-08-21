@@ -325,7 +325,7 @@ export default function BerandaPage() {
               jamMulai: activeJadwal.jamMulai,
               jamSelesai: activeJadwal.jamSelesai,
               waktuBuka: `${waktuBukaStr} WITA`,
-              appUrl: window.location.origin,
+              appUrl: 'https://walarham.vercel.app',
             }).catch(() => {});
           }).catch(() => {});
         }

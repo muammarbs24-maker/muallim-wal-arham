@@ -1,6 +1,16 @@
 /**
- * Service to dispatch OTP emails via backend API route
+ * Service to dispatch emails via backend API routes
  */
+
+export const APP_PROD_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://walarham.vercel.app';
+
+function resolveSafeUrl(url?: string): string {
+  if (url && !url.includes('localhost') && !url.includes('127.0.0.1')) {
+    return url.replace(/\/$/, '');
+  }
+  return APP_PROD_URL.replace(/\/$/, '');
+}
+
 export interface SendOtpParams {
   email: string;
   otp: string;
@@ -32,12 +42,18 @@ export interface SendWelcomeEmailParams {
   loginUrl?: string;
 }
 
-export async function sendTeacherWelcomeEmail({ nama, nip, email, password, loginUrl = 'http://localhost:3000' }: SendWelcomeEmailParams) {
+export async function sendTeacherWelcomeEmail({ nama, nip, email, password, loginUrl }: SendWelcomeEmailParams) {
   try {
     const res = await fetch('/api/auth/send-welcome-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nama, nip, email, password, loginUrl }),
+      body: JSON.stringify({
+        nama,
+        nip,
+        email,
+        password,
+        loginUrl: resolveSafeUrl(loginUrl),
+      }),
     });
 
     const data = await res.json();
@@ -69,7 +85,6 @@ export interface SendScheduleEmailParams {
 
 export async function sendScheduleNotificationEmail({ guruNama, guruEmail, jadwalList, appUrl, leadMinutes }: SendScheduleEmailParams) {
   try {
-    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://walarham.vercel.app';
     const res = await fetch('/api/notifikasi/send-jadwal-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -77,7 +92,7 @@ export async function sendScheduleNotificationEmail({ guruNama, guruEmail, jadwa
         guruNama,
         guruEmail,
         jadwalList,
-        appUrl: appUrl || currentOrigin,
+        appUrl: resolveSafeUrl(appUrl),
         leadMinutes: leadMinutes || 60,
       }),
     });
@@ -112,7 +127,6 @@ export async function sendScheduleSwapEmail({
   appUrl,
 }: SendScheduleSwapEmailParams) {
   try {
-    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://walarham.vercel.app';
     const res = await fetch('/api/notifikasi/send-tukar-jadwal-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -124,7 +138,7 @@ export async function sendScheduleSwapEmail({
         requesterJadwal,
         targetJadwal,
         catatan,
-        appUrl: appUrl || currentOrigin,
+        appUrl: resolveSafeUrl(appUrl),
       }),
     });
 
@@ -158,7 +172,6 @@ export async function sendAbsenOpenedNotificationEmail({
   appUrl,
 }: SendAbsenOpenedEmailParams) {
   try {
-    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://walarham.vercel.app';
     const res = await fetch('/api/notifikasi/send-absen-opened-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -170,7 +183,7 @@ export async function sendAbsenOpenedNotificationEmail({
         jamMulai,
         jamSelesai,
         waktuBuka,
-        appUrl: appUrl || currentOrigin,
+        appUrl: resolveSafeUrl(appUrl),
       }),
     });
 
@@ -192,14 +205,13 @@ export async function sendTeacherReactivatedEmail({
   appUrl?: string;
 }) {
   try {
-    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://walarham.vercel.app';
     const res = await fetch('/api/notifikasi/send-guru-reactivated-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         guruNama,
         guruEmail,
-        appUrl: appUrl || currentOrigin,
+        appUrl: resolveSafeUrl(appUrl),
       }),
     });
 
@@ -210,5 +222,3 @@ export async function sendTeacherReactivatedEmail({
     return { success: false, error: 'Koneksi gagal saat mengirim email aktivasi' };
   }
 }
-
-
