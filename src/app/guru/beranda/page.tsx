@@ -344,7 +344,7 @@ export default function BerandaPage() {
               jamMulai: activeJadwal.jamMulai,
               jamSelesai: activeJadwal.jamSelesai,
               waktuBuka: `${waktuBukaStr} WITA`,
-              appUrl: 'https://walarham.vercel.app',
+              appUrl: 'https://muallim-wal-arham.vercel.app',
             }).catch(() => {});
           }).catch(() => {});
         }

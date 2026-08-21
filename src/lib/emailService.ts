@@ -2,7 +2,7 @@
  * Service to dispatch emails via backend API routes
  */
 
-export const APP_PROD_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://walarham.vercel.app';
+export const APP_PROD_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://muallim-wal-arham.vercel.app';
 
 function resolveSafeUrl(url?: string): string {
   if (url && !url.includes('localhost') && !url.includes('127.0.0.1')) {

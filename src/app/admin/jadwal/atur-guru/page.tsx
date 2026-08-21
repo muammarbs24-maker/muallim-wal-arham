@@ -237,7 +237,7 @@ export default function AturJadwalGuruPage() {
             guruNama: guru.nama,
             guruEmail: guru.email,
             jadwalList: guruScheduleList,
-            appUrl: 'https://walarham.vercel.app',
+            appUrl: 'https://muallim-wal-arham.vercel.app',
             leadMinutes: mockSettings.waktuBukaSebelumJadwal || 30,
           }).catch((err) => console.error('Error sending schedule email to', guru.email, err))
         );

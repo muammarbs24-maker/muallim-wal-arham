@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     } = await request.json();
 
     const safeAppUrl = (!appUrl || appUrl.includes('localhost') || appUrl.includes('127.0.0.1'))
-      ? (process.env.NEXT_PUBLIC_APP_URL || 'https://walarham.vercel.app').replace(/\/$/, '')
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'https://muallim-wal-arham.vercel.app').replace(/\/$/, '')
       : appUrl.replace(/\/$/, '');
 
     if (!guruEmail || !guruNama) {

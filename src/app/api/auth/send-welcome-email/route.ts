@@ -6,7 +6,7 @@ export async function POST(request: Request) {
     const { nama, nip, email, password, loginUrl } = await request.json();
 
     const safeLoginUrl = (!loginUrl || loginUrl.includes('localhost') || loginUrl.includes('127.0.0.1'))
-      ? (process.env.NEXT_PUBLIC_APP_URL || 'https://walarham.vercel.app')
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'https://muallim-wal-arham.vercel.app')
       : loginUrl;
 
     if (!email || !nama || !nip || !password) {
