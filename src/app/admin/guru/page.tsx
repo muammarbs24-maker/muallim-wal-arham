@@ -39,7 +39,7 @@ export default function AdminGuruPage() {
     nama: '',
     email: '',
     nip: autoNip,
-    jabatan: 'Guru Tahfidz',
+    jabatan: 'Ustadz',
     statusKepegawaian: 'tetap' as 'tetap' | 'honorer' | 'magang',
     telepon: '',
     alamat: 'Makassar',
@@ -52,7 +52,7 @@ export default function AdminGuruPage() {
       nama: '',
       email: '',
       nip: nextNip,
-      jabatan: 'Guru Tahfidz',
+      jabatan: 'Ustadz',
       statusKepegawaian: 'tetap',
       telepon: '',
       alamat: 'Makassar',
@@ -358,11 +358,8 @@ export default function AdminGuruPage() {
                       onChange={(e) => setFormData({ ...formData, jabatan: e.target.value })}
                       style={{ fontSize: 12 }}
                     >
-                      <option value="Guru Tahfidz">Guru Tahfidz</option>
-                      <option value="Guru Kelas">Guru Kelas</option>
-                      <option value="Guru Diniyah">Guru Diniyah</option>
-                      <option value="Musyrif Asrama">Musyrif Asrama</option>
-                      <option value="Koordinator Tahfidz">Koordinator Tahfidz</option>
+                      <option value="Ustadz">Ustadz</option>
+                      <option value="Ustadzah">Ustadzah</option>
                     </select>
                   </div>
 

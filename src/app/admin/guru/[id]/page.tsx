@@ -542,13 +542,15 @@ export default function AdminGuruDetailPage() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
                   <div className="form-group">
-                    <label className="form-label" style={{ fontWeight: 700 }}>Jabatan / Tugas</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={editForm.jabatan}
+                    <label className="form-label" style={{ fontWeight: 700 }}>Jabatan / Peran</label>
+                    <select
+                      className="form-select"
+                      value={editForm.jabatan || 'Ustadz'}
                       onChange={(e) => setEditForm({ ...editForm, jabatan: e.target.value })}
-                    />
+                    >
+                      <option value="Ustadz">Ustadz</option>
+                      <option value="Ustadzah">Ustadzah</option>
+                    </select>
                   </div>
                   <div className="form-group">
                     <label className="form-label" style={{ fontWeight: 700 }}>Status Kepegawaian</label>
