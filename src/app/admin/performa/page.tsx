@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { Star, ArrowUpRight, Calendar } from 'lucide-react';
 import { mockGuru, hitungSkorKedisiplinan, hitungPoinPartisipasi, loadPersistedData } from '@/lib/mockData';
 import { getInitials } from '@/lib/utils';
+import type { Guru } from '@/types';
 
 const MONTH_NAMES = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -12,6 +13,19 @@ const MONTH_NAMES = [
 ];
 
 export default function AdminPerformaPage() {
+  const [guruList, setGuruList] = useState<Guru[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('muallim_guru_list');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
+    }
+    return mockGuru;
+  });
+
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
@@ -19,16 +33,39 @@ export default function AdminPerformaPage() {
 
   useEffect(() => {
     loadPersistedData();
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('muallim_guru_list');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setGuruList(parsed);
+          }
+        }
+      } catch (e) {}
+    }
+
+    import('@/lib/supabaseClient').then(({ getGurusSupabase, getAbsensiSupabase }) => {
+      getGurusSupabase().then((gurus) => {
+        if (gurus && gurus.length > 0) {
+          setGuruList(gurus);
+        }
+      }).catch(() => {});
+      getAbsensiSupabase().catch(() => {});
+    });
   }, []);
 
-  const performaData = mockGuru
-    .filter((g) => g.aktif)
-    .map((g) => ({
-      guru: g,
-      skor: hitungSkorKedisiplinan(g.id, currentMonth + 1, currentYear),
-      poin: hitungPoinPartisipasi(g.id, currentMonth + 1, currentYear),
-    }))
-    .sort((a, b) => b.skor.skor - a.skor.skor);
+  const performaData = useMemo(() => {
+    const list = guruList.length > 0 ? guruList : mockGuru;
+    return list
+      .filter((g) => g.aktif)
+      .map((g) => ({
+        guru: g,
+        skor: hitungSkorKedisiplinan(g.id, currentMonth + 1, currentYear),
+        poin: hitungPoinPartisipasi(g.id, currentMonth + 1, currentYear),
+      }))
+      .sort((a, b) => b.skor.skor - a.skor.skor);
+  }, [guruList, currentMonth, currentYear]);
 
   const gradeColor = (grade: string) =>
     grade === 'Sangat Baik' ? 'success' :
