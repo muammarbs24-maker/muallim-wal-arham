@@ -380,12 +380,12 @@ export default function AturJadwalGuruPage() {
           <span className="badge badge-primary" style={{ fontSize: 10 }}>7 Hari x 4 Sesi</span>
         </div>
 
-        {/* ─── MAIN GRID + SIDEBAR (FITTED 100% WIDTH) ─── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 240px', gap: 'var(--space-3)', alignItems: 'flex-start' }}>
+        {/* ─── MAIN GRID + SIDEBAR ─── */}
+        <div className="admin-grid-atur-guru">
           
           {/* LEFT: MATRIX GRID (DAYS x 4 SESI) */}
-          <div className="card" style={{ width: '100%', overflow: 'hidden' }}>
-            <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: 11 }}>
+          <div className="card" style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <table style={{ width: '100%', minWidth: 680, borderCollapse: 'collapse', fontSize: 11 }}>
               <thead>
                 <tr style={{ borderBottom: '1.5px solid var(--color-border)' }}>
                   <th style={{ width: '15%', background: 'var(--color-surface-2)', padding: '10px 6px', textAlign: 'left', fontWeight: 700 }}>

@@ -237,7 +237,7 @@ export default function AdminDashboardPage() {
       <div className="admin-content">
 
         {/* ─── Hero stat row ─── */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--space-4)', marginBottom: 'var(--space-5)' }}>
+        <div className="admin-grid-4">
           <HeroStat
             label="Total Guru Aktif"
             value={totalGuru}
@@ -270,7 +270,7 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* ─── Row 1: Donut + Weekly Bar ─── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 'var(--space-5)', marginBottom: 'var(--space-5)' }}>
+        <div className="admin-grid-2-1">
 
           {/* Donut Chart (Smooth, 0 Lag) */}
           <div className="card">
@@ -375,7 +375,7 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* ─── Row 2: Top Guru + Belum Absen + Kegiatan ─── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 'var(--space-5)', marginBottom: 'var(--space-5)' }}>
+        <div className="admin-grid-3-col">
 
           {/* Top 5 Guru berdasarkan skor */}
           <div className="card">
@@ -517,7 +517,7 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* ─── Row 3: Absensi Live + Jadwal Hari Ini ─── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-5)' }}>
+        <div className="admin-grid-1-1">
 
           {/* Absensi hari ini — live */}
           <div className="card">
