@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { TrendingUp, Star, ArrowUpRight, Calendar, Info } from 'lucide-react';
+import { Star, ArrowUpRight, Calendar } from 'lucide-react';
 import { mockGuru, hitungSkorKedisiplinan, hitungPoinPartisipasi, loadPersistedData } from '@/lib/mockData';
 import { getInitials } from '@/lib/utils';
 
@@ -12,7 +12,6 @@ const MONTH_NAMES = [
 ];
 
 export default function AdminPerformaPage() {
-  const [sortBy, setSortBy] = useState<'skor' | 'poin'>('skor');
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
@@ -29,9 +28,7 @@ export default function AdminPerformaPage() {
       skor: hitungSkorKedisiplinan(g.id, currentMonth + 1, currentYear),
       poin: hitungPoinPartisipasi(g.id, currentMonth + 1, currentYear),
     }))
-    .sort((a, b) =>
-      sortBy === 'skor' ? b.skor.skor - a.skor.skor : b.poin.poinTotal - a.poin.poinTotal
-    );
+    .sort((a, b) => b.skor.skor - a.skor.skor);
 
   const gradeColor = (grade: string) =>
     grade === 'Sangat Baik' ? 'success' :
