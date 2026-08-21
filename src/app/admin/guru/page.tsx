@@ -22,7 +22,7 @@ export default function AdminGuruPage() {
     setGuruList([...mockGuru]);
 
     getGurusSupabase().then((dbGurus) => {
-      if (dbGurus && dbGurus.length > 0) {
+      if (Array.isArray(dbGurus)) {
         mockGuru.length = 0;
         mockGuru.push(...dbGurus);
         savePersistedGuru(dbGurus);

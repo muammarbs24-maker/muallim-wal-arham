@@ -259,19 +259,19 @@ export default function AdminGuruDetailPage() {
   const handleConfirmDelete = async () => {
     setIsProcessingAction(true);
 
-    const filtered = mockGuru.filter((g) => g.id !== guru.id);
+    const filtered = mockGuru.filter((g) => g.id !== guru.id && g.email !== guru.email);
     mockGuru.length = 0;
     mockGuru.push(...filtered);
     savePersistedGuru(filtered);
 
     try {
-      const { supabase } = await import('@/lib/supabaseClient');
-      await supabase.from('gurus').delete().eq('id', guru.id);
+      const { deleteGuruSupabase } = await import('@/lib/supabaseClient');
+      await deleteGuruSupabase(guru.id);
     } catch (e) {}
 
     setIsProcessingAction(false);
     setShowActionModal(false);
-    router.push('/admin/guru');
+    router.replace('/admin/guru');
   };
 
   // 4. Eksekusi Aktifkan Kembali Guru & Kirim Email Notifikasi

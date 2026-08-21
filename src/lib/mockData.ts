@@ -188,11 +188,13 @@ export function loadPersistedData(): void {
 
     const savedGuru = localStorage.getItem('muallim_guru_list');
     if (savedGuru) {
-      const parsed = JSON.parse(savedGuru);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        mockGuru.length = 0;
-        mockGuru.push(...parsed);
-      }
+      try {
+        const parsed = JSON.parse(savedGuru);
+        if (Array.isArray(parsed)) {
+          mockGuru.length = 0;
+          mockGuru.push(...parsed);
+        }
+      } catch (e) {}
     }
 
     const savedMatrix = localStorage.getItem('muallim_jadwal_matrix');
