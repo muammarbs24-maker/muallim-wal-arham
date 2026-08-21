@@ -1368,7 +1368,15 @@ ol {
   }
 }
 
+/* Utility responsive helpers */
+.hide-on-mobile {
+  display: flex;
+}
+
 @media (max-width: 768px) {
+  .hide-on-mobile {
+    display: none !important;
+  }
   .admin-layout {
     flex-direction: column;
     min-height: 100vh;

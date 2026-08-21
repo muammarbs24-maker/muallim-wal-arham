@@ -170,7 +170,7 @@ export default function AdminLaporanPage() {
             Rekapitulasi kehadiran guru harian, bulanan, dan total jam kerja
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+        <div className="hide-on-mobile" style={{ gap: 'var(--space-2)' }}>
           <button
             type="button"
             className="btn btn-primary btn-sm"
