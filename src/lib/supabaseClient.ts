@@ -223,7 +223,7 @@ export async function getTukarJadwalRequestsSupabase(): Promise<TukarJadwalReque
       .from('jadwal_matrix')
       .select('*')
       .eq('id', '__tukar_jadwal_requests__')
-      .single();
+      .maybeSingle();
 
     if (error || !data || !data.sesi_id) return [];
     const parsed = JSON.parse(data.sesi_id);

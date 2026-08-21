@@ -117,13 +117,24 @@ export default function JadwalPage() {
         }
       }).catch(() => {});
 
-      getTukarJadwalRequestsSupabase().then((requests) => {
-        if (Array.isArray(requests)) {
-          mockTukarJadwalRequests.length = 0;
-          mockTukarJadwalRequests.push(...requests);
-          setSwapRequests([...requests]);
-        }
-      }).catch(() => {});
+      const loadSwaps = async () => {
+        try {
+          let reqs = await getTukarJadwalRequestsSupabase();
+          if (!reqs || reqs.length === 0) {
+            const res = await fetch('/api/tukar-jadwal').catch(() => null);
+            if (res && res.ok) {
+              const data = await res.json();
+              if (data.requests) reqs = data.requests;
+            }
+          }
+          if (Array.isArray(reqs)) {
+            mockTukarJadwalRequests.length = 0;
+            mockTukarJadwalRequests.push(...reqs);
+            setSwapRequests([...reqs]);
+          }
+        } catch (e) {}
+      };
+      loadSwaps();
 
       getAppSettingsSupabase().then((settings) => {
         if (settings) {
@@ -138,15 +149,29 @@ export default function JadwalPage() {
 
   // Pending incoming requests targeted to current teacher
   const incomingPendingRequests = swapRequests.filter((r) => {
-    const isTarget = r.targetGuruId === activeGuru.id ||
-      (r.targetGuruNama && activeGuru.nama && r.targetGuruNama.toLowerCase() === activeGuru.nama.toLowerCase());
+    const currentId = activeGuru?.id || '';
+    const currentName = (activeGuru?.nama || '').toLowerCase().trim();
+    const targetId = r.targetGuruId || '';
+    const targetName = (r.targetGuruNama || '').toLowerCase().trim();
+
+    const isTarget =
+      (currentId && targetId && currentId === targetId) ||
+      (currentName && targetName && (currentName.includes(targetName) || targetName.includes(currentName)));
+
     return isTarget && (r.status === 'pending' || (r.status as string) === 'menunggu');
   });
 
   // Outgoing requests made by current teacher
   const outgoingRequests = swapRequests.filter((r) => {
-    return r.requesterGuruId === activeGuru.id ||
-      (r.requesterGuruNama && activeGuru.nama && r.requesterGuruNama.toLowerCase() === activeGuru.nama.toLowerCase());
+    const currentId = activeGuru?.id || '';
+    const currentName = (activeGuru?.nama || '').toLowerCase().trim();
+    const reqId = r.requesterGuruId || '';
+    const reqName = (r.requesterGuruNama || '').toLowerCase().trim();
+
+    return (
+      (currentId && reqId && currentId === reqId) ||
+      (currentName && reqName && (currentName.includes(reqName) || reqName.includes(currentName)))
+    );
   });
 
   const handleOpenSwapModal = (mySlotPreset?: { hari: DayOfWeek; sesiId: SesiType; sesiNama: string }) => {
