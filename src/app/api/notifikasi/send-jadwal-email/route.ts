@@ -17,7 +17,7 @@ export async function POST(request: Request) {
       guruNama,
       guruEmail,
       jadwalList,
-      appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://attendance-flame-three.vercel.app',
+      appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://attendance-orcin-seven.vercel.app',
       leadMinutes = 60,
     }: {
       guruNama: string;
@@ -40,28 +40,80 @@ export async function POST(request: Request) {
     const smtpPass = process.env.SMTP_PASS;
     const emailFrom = process.env.EMAIL_FROM || `"Yayasan Mu'Allim Wal Arham" <${smtpUser || 'noreply@muallim.sch.id'}>`;
 
-    const subject = `📅 Konfirmasi Jadwal Mengajar Terbaru — Yayasan Tahfidz Mu'Allim Wal Arham`;
+    const subject = `📅 Jadwal Mengajar Anda (Senin – Minggu) — Yayasan Tahfidz Mu'Allim Wal Arham`;
 
-    const scheduleRows = jadwalList && jadwalList.length > 0
-      ? jadwalList.map((j) => `
-        <tr style="border-bottom: 1px solid #e2e8f0;">
-          <td style="padding: 10px 14px; font-weight: 700; color: #1e293b; font-size: 12.5px;">${j.hari}</td>
-          <td style="padding: 10px 14px; color: #0f172a; font-size: 13px; font-weight: 600;">
-            ${j.mataPelajaran}
-            <div style="font-size: 11px; color: #64748b; font-weight: 400;">${j.kelas} ${j.ruangan ? `&bull; ${j.ruangan}` : ''}</div>
-          </td>
-          <td style="padding: 10px 14px; color: #166534; font-weight: 700; font-size: 12px; font-family: monospace; white-space: nowrap;">
-            ${j.jamMulai}–${j.jamSelesai} WITA
-          </td>
-        </tr>
-      `).join('')
-      : `
-        <tr>
-          <td colspan="3" style="padding: 16px; text-align: center; color: #64748b; font-size: 12px;">
-            Belum ada jadwal mengajar aktif yang terdaftar.
-          </td>
-        </tr>
-      `;
+    const DAYS_ORDER = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+
+    const scheduleRows = DAYS_ORDER.map((day) => {
+      const dayItems = (jadwalList || []).filter(
+        (j) => j.hari && j.hari.trim().toLowerCase() === day.toLowerCase()
+      );
+
+      // Hari Libur (Tidak ada jadwal mengajar)
+      if (dayItems.length === 0) {
+        return `
+          <tr style="border-bottom: 1px solid #e2e8f0; background-color: #fafbfc;">
+            <td style="padding: 12px 14px; font-weight: 700; color: #475569; font-size: 13px; border-right: 1px solid #e2e8f0; vertical-align: middle; width: 110px;">
+              ${day}
+            </td>
+            <td colspan="2" style="padding: 12px 14px; color: #64748b; font-size: 12px; vertical-align: middle;">
+              <span style="display: inline-block; background-color: #f1f5f9; color: #475569; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 6px; border: 1px solid #cbd5e1; margin-right: 8px;">
+                🌴 Libur
+              </span>
+              <span style="color: #64748b; font-size: 12px; font-weight: 500;">Tidak ada jadwal mengajar</span>
+            </td>
+          </tr>
+        `;
+      }
+
+      // 1 Jadwal di Hari Ini
+      if (dayItems.length === 1) {
+        const item = dayItems[0];
+        return `
+          <tr style="border-bottom: 1px solid #e2e8f0; background-color: #ffffff;">
+            <td style="padding: 12px 14px; font-weight: 800; color: #0f172a; font-size: 13px; border-right: 1px solid #e2e8f0; vertical-align: middle; width: 110px; background-color: #f8fafc;">
+              ${day}
+            </td>
+            <td style="padding: 12px 14px; color: #0f172a; font-size: 13px; border-right: 1px solid #e2e8f0; vertical-align: middle;">
+              <div style="font-weight: 700; color: #1e293b;">${item.mataPelajaran}</div>
+              <div style="font-size: 11.5px; color: #64748b; font-weight: 500; margin-top: 2px;">
+                ${item.kelas}${item.ruangan ? ` &bull; ${item.ruangan}` : ''}
+              </div>
+            </td>
+            <td style="padding: 12px 14px; color: #166534; font-weight: 800; font-size: 12.5px; font-family: monospace; white-space: nowrap; vertical-align: middle; text-align: right; width: 145px;">
+              ${item.jamMulai}–${item.jamSelesai} WITA
+            </td>
+          </tr>
+        `;
+      }
+
+      // 2 Jadwal atau lebih dalam 1 Hari (Rowspan hari agar nama hari tidak ganda)
+      return dayItems.map((item, idx) => {
+        const isFirst = idx === 0;
+        const isLast = idx === dayItems.length - 1;
+        return `
+          <tr style="border-bottom: ${isLast ? '1px solid #e2e8f0' : '1px dashed #e2e8f0'}; background-color: #ffffff;">
+            ${isFirst ? `
+              <td rowspan="${dayItems.length}" style="padding: 12px 14px; font-weight: 800; color: #0f172a; font-size: 13px; border-right: 1px solid #e2e8f0; vertical-align: middle; width: 110px; background-color: #f8fafc;">
+                ${day}
+                <div style="font-size: 10.5px; color: #166534; font-weight: 700; margin-top: 3px; background-color: #dcfce7; padding: 2px 6px; border-radius: 4px; display: inline-block;">
+                  ${dayItems.length} Sesi
+                </div>
+              </td>
+            ` : ''}
+            <td style="padding: 10px 14px; color: #0f172a; font-size: 13px; border-right: 1px solid #e2e8f0; vertical-align: middle;">
+              <div style="font-weight: 700; color: #1e293b;">${item.mataPelajaran}</div>
+              <div style="font-size: 11.5px; color: #64748b; font-weight: 500; margin-top: 2px;">
+                ${item.kelas}${item.ruangan ? ` &bull; ${item.ruangan}` : ''}
+              </div>
+            </td>
+            <td style="padding: 10px 14px; color: #166534; font-weight: 800; font-size: 12.5px; font-family: monospace; white-space: nowrap; vertical-align: middle; text-align: right; width: 145px;">
+              ${item.jamMulai}–${item.jamSelesai} WITA
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }).join('');
 
     const directJadwalLink = `${appUrl}/guru/jadwal`;
 
@@ -78,7 +130,7 @@ export async function POST(request: Request) {
       <td align="center">
         
         <!-- Main Container -->
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06); border: 1px solid #e2e8f0;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width: 620px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06); border: 1px solid #e2e8f0;">
           
           <!-- Banner Header -->
           <tr>
@@ -98,32 +150,34 @@ export async function POST(request: Request) {
                 Assalamu'alaikum Warahmatullahi Wabarakatuh,
               </p>
               <p style="color: #334155; font-size: 13.5px; line-height: 1.6; margin: 0 0 20px;">
-                Yth. Ustadz/Ustadzah <strong>${guruNama}</strong>, berikut kami sampaikan bahwa Administrator Yayasan telah memperbarui/menetapkan <strong>Jadwal Mengajar Terbaru</strong> untuk Anda.
+                Yth. Ustadz/Ustadzah <strong>${guruNama}</strong>, berikut rincian jadwal mengajar lengkap Anda mulai dari hari <strong>Senin hingga Minggu</strong> yang telah ditetapkan oleh Administrator:
               </p>
 
-              <!-- Schedule Table -->
+              <!-- Schedule Table (Senin - Minggu) -->
               <div style="margin-bottom: 24px;">
                 <div style="font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
-                  📋 Rincian Jadwal Mengajar Anda:
+                  📋 Tabel Jadwal Mengajar Mingguan:
                 </div>
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 12px; overflow: hidden; border-collapse: collapse;">
-                  <thead>
-                    <tr style="background-color: #e2e8f0; text-align: left;">
-                      <th style="padding: 10px 14px; font-size: 11px; font-weight: 800; color: #334155; text-transform: uppercase;">Hari</th>
-                      <th style="padding: 10px 14px; font-size: 11px; font-weight: 800; color: #334155; text-transform: uppercase;">Sesi &amp; Pelajaran</th>
-                      <th style="padding: 10px 14px; font-size: 11px; font-weight: 800; color: #334155; text-transform: uppercase;">Waktu (WITA)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${scheduleRows}
-                  </tbody>
-                </table>
+                <div style="border: 1.5px solid #cbd5e1; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-collapse: collapse; background-color: #ffffff; width: 100%;">
+                    <thead>
+                      <tr style="background-color: #1e293b; text-align: left; color: #ffffff;">
+                        <th style="padding: 11px 14px; font-size: 11px; font-weight: 800; text-transform: uppercase; width: 110px;">Hari</th>
+                        <th style="padding: 11px 14px; font-size: 11px; font-weight: 800; text-transform: uppercase;">Sesi &amp; Pelajaran</th>
+                        <th style="padding: 11px 14px; font-size: 11px; font-weight: 800; text-transform: uppercase; text-align: right; width: 145px;">Waktu (WITA)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${scheduleRows}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               <!-- CTA Button -->
               <div style="text-align: center; margin: 28px 0 24px;">
-                <a href="${directJadwalLink}" target="_blank" style="display: inline-block; background-color: #1B6B4A; color: #ffffff; padding: 14px 36px; border-radius: 10px; font-weight: 700; font-size: 14px; text-decoration: none; box-shadow: 0 4px 14px rgba(27, 107, 74, 0.35);">
-                  Lihat Jadwal Saya di Aplikasi &rarr;
+                <a href="${directJadwalLink}" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #1B6B4A 0%, #15803D 100%); color: #ffffff; padding: 14px 36px; border-radius: 10px; font-weight: 800; font-size: 14px; text-decoration: none; box-shadow: 0 4px 14px rgba(27, 107, 74, 0.35);">
+                  📅 Lihat Jadwal Saya di Aplikasi &rarr;
                 </a>
               </div>
 
@@ -131,7 +185,7 @@ export async function POST(request: Request) {
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 10px; padding: 12px 14px;">
                 <tr>
                   <td style="font-size: 12px; color: #065f46; line-height: 1.5;">
-                    💡 <strong>Informasi Presensi:</strong> Form absensi masuk akan otomatis terbuka dan muncul di akun Anda tepat <strong>${leadMinutes} menit sebelum jadwal dimulai</strong>, dan akan otomatis tertutup setelah Anda menyelesaikan absensi pulang.
+                    💡 <strong>Informasi Presensi:</strong> Form absensi masuk akan otomatis terbuka dan muncul di portal guru Anda tepat <strong>${leadMinutes} menit sebelum jam mengajar dimulai</strong>, dan akan otomatis tertutup setelah Anda menyelesaikan absensi pulang.
                   </td>
                 </tr>
               </table>
@@ -142,8 +196,8 @@ export async function POST(request: Request) {
           <!-- Footer -->
           <tr>
             <td style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px 24px; text-align: center;">
-              <p style="color: #64748b; font-size: 12px; margin: 0 0 4px;">Yayasan Tahfidz Mu'Allim Wal Arham &bull; Makassar</p>
-              <p style="color: #94a3b8; font-size: 11px; margin: 0; font-weight: 600;">&copy; 2026 MR Team</p>
+              <p style="color: #64748b; font-size: 12px; margin: 0 0 4px; font-weight: 600;">Yayasan Tahfidz Mu'Allim Wal Arham &bull; Makassar</p>
+              <p style="color: #94a3b8; font-size: 11px; margin: 0;">Sistem Presensi &amp; Manajemen Jadwal Guru</p>
             </td>
           </tr>
 
