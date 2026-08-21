@@ -11,7 +11,7 @@ export async function POST(request: Request) {
       requesterJadwal,
       targetJadwal,
       catatan = '',
-      appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://attendance-orcin-seven.vercel.app',
+      appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://walarham.vercel.app',
     }: {
       type: 'request' | 'approved' | 'rejected';
       targetEmail: string;

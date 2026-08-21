@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       jamMulai,
       jamSelesai,
       waktuBuka,
-      appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://attendance-orcin-seven.vercel.app',
+      appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://walarham.vercel.app',
     }: SendAbsenOpenedParams = await request.json();
 
     if (!guruEmail || !guruNama || !sesiNama) {

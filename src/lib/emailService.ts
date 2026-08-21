@@ -69,7 +69,7 @@ export interface SendScheduleEmailParams {
 
 export async function sendScheduleNotificationEmail({ guruNama, guruEmail, jadwalList, appUrl, leadMinutes }: SendScheduleEmailParams) {
   try {
-    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://attendance-flame-three.vercel.app';
+    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://walarham.vercel.app';
     const res = await fetch('/api/notifikasi/send-jadwal-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -112,7 +112,7 @@ export async function sendScheduleSwapEmail({
   appUrl,
 }: SendScheduleSwapEmailParams) {
   try {
-    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://attendance-flame-three.vercel.app';
+    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://walarham.vercel.app';
     const res = await fetch('/api/notifikasi/send-tukar-jadwal-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -158,7 +158,7 @@ export async function sendAbsenOpenedNotificationEmail({
   appUrl,
 }: SendAbsenOpenedEmailParams) {
   try {
-    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://attendance-orcin-seven.vercel.app';
+    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://walarham.vercel.app';
     const res = await fetch('/api/notifikasi/send-absen-opened-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -192,7 +192,7 @@ export async function sendTeacherReactivatedEmail({
   appUrl?: string;
 }) {
   try {
-    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://attendance-orcin-seven.vercel.app';
+    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://walarham.vercel.app';
     const res = await fetch('/api/notifikasi/send-guru-reactivated-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

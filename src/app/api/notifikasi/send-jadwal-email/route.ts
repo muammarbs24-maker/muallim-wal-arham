@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       guruNama,
       guruEmail,
       jadwalList,
-      appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://attendance-orcin-seven.vercel.app',
+      appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://walarham.vercel.app',
       leadMinutes = 60,
     }: {
       guruNama: string;

@@ -80,7 +80,7 @@ export async function GET(request: Request) {
     }
 
     const emailsSent: any[] = [];
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://attendance-orcin-seven.vercel.app';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://walarham.vercel.app';
     const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
     const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
     const smtpUser = process.env.SMTP_USER;

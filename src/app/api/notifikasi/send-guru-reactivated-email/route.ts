@@ -6,7 +6,7 @@ export async function POST(request: Request) {
     const {
       guruNama,
       guruEmail,
-      appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://attendance-orcin-seven.vercel.app',
+      appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://walarham.vercel.app',
     } = await request.json();
 
     if (!guruEmail || !guruNama) {

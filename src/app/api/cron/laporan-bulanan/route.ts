@@ -170,7 +170,7 @@ async function processAndSendMonthlyReport(targetBulanStr?: string, targetTahunS
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;
   const emailFrom = process.env.EMAIL_FROM || `"Yayasan Mu'Allim Wal Arham" <${smtpUser || 'noreply@muallim.sch.id'}>`;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://attendance-orcin-seven.vercel.app';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://walarham.vercel.app';
 
   const subject = `📊 Laporan Rekap Presensi Bulanan Guru (${periodeLabel}) — Yayasan Mu'Allim Wal Arham`;
 
