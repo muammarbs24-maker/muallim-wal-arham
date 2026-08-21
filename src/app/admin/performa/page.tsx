@@ -52,73 +52,9 @@ export default function AdminPerformaPage() {
             Evaluasi kedisiplinan dan poin partisipasi guru
           </p>
         </div>
-        <div className="hide-on-mobile" style={{ gap: 'var(--space-2)' }}>
-          <button
-            className={`btn btn-sm ${sortBy === 'skor' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setSortBy('skor')}
-          >
-            <TrendingUp size={14} /> Urutkan: Skor
-          </button>
-          <button
-            className={`btn btn-sm ${sortBy === 'poin' ? 'btn-primary' : 'btn-ghost'}`}
-            onClick={() => setSortBy('poin')}
-          >
-            <Star size={14} /> Urutkan: Poin
-          </button>
-        </div>
       </div>
 
       <div className="admin-content">
-        {/* Mobile Sorting Capsule Pills */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }} className="show-on-mobile-flex">
-          <button
-            type="button"
-            className={`tab-pill ${sortBy === 'skor' ? 'active' : ''}`}
-            onClick={() => setSortBy('skor')}
-            style={{
-              flex: 1,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 5,
-              padding: '7px 12px',
-              borderRadius: 9999,
-              fontSize: 11.5,
-              fontWeight: 700,
-              border: sortBy === 'skor' ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
-              background: sortBy === 'skor' ? 'var(--color-primary)' : 'var(--color-surface)',
-              color: sortBy === 'skor' ? '#ffffff' : 'var(--color-text-secondary)',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <TrendingUp size={13} /> Urutkan: Skor
-          </button>
-          <button
-            type="button"
-            className={`tab-pill ${sortBy === 'poin' ? 'active' : ''}`}
-            onClick={() => setSortBy('poin')}
-            style={{
-              flex: 1,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 5,
-              padding: '7px 12px',
-              borderRadius: 9999,
-              fontSize: 11.5,
-              fontWeight: 700,
-              border: sortBy === 'poin' ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
-              background: sortBy === 'poin' ? 'var(--color-primary)' : 'var(--color-surface)',
-              color: sortBy === 'poin' ? '#ffffff' : 'var(--color-text-secondary)',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <Star size={13} /> Urutkan: Poin
-          </button>
-        </div>
-
         {/* Top 3 Cards */}
         <div className="admin-grid-3">
           {performaData.slice(0, 3).map((p, i) => (
