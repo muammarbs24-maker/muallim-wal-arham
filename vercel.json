@@ -3,10 +3,6 @@
     {
       "path": "/api/cron/laporan-bulanan",
       "schedule": "0 0 1 * *"
-    },
-    {
-      "path": "/api/cron/check-opened-sessions",
-      "schedule": "*/15 * * * *"
     }
   ]
 }
