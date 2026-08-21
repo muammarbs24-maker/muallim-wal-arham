@@ -27,6 +27,7 @@ export default function JadwalPage() {
   const [schedulesList, setSchedulesList] = useState<Jadwal[]>([]);
   const [matrixList, setMatrixList] = useState<JadwalSesiEntry[]>([]);
   const [sesiList, setSesiList] = useState<SesiConfig[]>([]);
+  const [teachersList, setTeachersList] = useState<Guru[]>([]);
   const [activeGuru, setActiveGuru] = useState<Guru>(currentGuru);
   const [appSettings, setAppSettings] = useState<AppSettings>(mockSettings);
   const [swapRequests, setSwapRequests] = useState<TukarJadwalRequest[]>([]);
@@ -82,7 +83,20 @@ export default function JadwalPage() {
       }
     }
 
-    import('@/lib/supabaseClient').then(({ getJadwalMatrixSupabase, getSesiListSupabase, getAppSettingsSupabase, getTukarJadwalRequestsSupabase }) => {
+    import('@/lib/supabaseClient').then(({ getJadwalMatrixSupabase, getSesiListSupabase, getAppSettingsSupabase, getTukarJadwalRequestsSupabase, getGurusSupabase }) => {
+      getGurusSupabase().then((gurus) => {
+        if (Array.isArray(gurus) && gurus.length > 0) {
+          mockGuru.length = 0;
+          mockGuru.push(...gurus);
+          setTeachersList([...gurus]);
+          const savedId = typeof window !== 'undefined' ? localStorage.getItem('logged_in_guru_id') : null;
+          if (savedId) {
+            const f = gurus.find((g) => g.id === savedId);
+            if (f) setActiveGuru(f);
+          }
+        }
+      }).catch(() => {});
+
       getSesiListSupabase().then((sessions) => {
         if (sessions && sessions.length > 0) {
           mockSesiList.length = 0;
@@ -146,7 +160,7 @@ export default function JadwalPage() {
     setShowSwapModal(true);
   };
 
-  const handleSendSwapRequest = (e: React.FormEvent) => {
+  const handleSendSwapRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMySlot || !selectedTargetSlot) {
       alert('Silakan pilih jadwal Anda dan jadwal guru yang ingin ditukar.');
@@ -170,21 +184,30 @@ export default function JadwalPage() {
       catatan: swapCatatan.trim(),
     });
 
-    setTimeout(() => {
-      setIsSubmittingSwap(false);
-      setShowSwapModal(false);
-      setSwapCatatan('');
-      setSelectedTargetSlot(null);
-      refreshData();
-      setToastMessage(`✓ Permintaan tukar jadwal berhasil dikirim ke ${newReq.targetGuruNama}! Menunggu persetujuan.`);
-      setTimeout(() => setToastMessage(null), 4000);
-    }, 400);
+    try {
+      const { saveTukarJadwalRequestsSupabase } = await import('@/lib/supabaseClient');
+      await saveTukarJadwalRequestsSupabase(mockTukarJadwalRequests);
+    } catch (err) {}
+
+    setIsSubmittingSwap(false);
+    setShowSwapModal(false);
+    setSwapCatatan('');
+    setSelectedTargetSlot(null);
+    setSwapRequests([...mockTukarJadwalRequests]);
+    refreshData();
+    setToastMessage(`✓ Permintaan tukar jadwal berhasil dikirim ke ${newReq.targetGuruNama}! Menunggu persetujuan.`);
+    setTimeout(() => setToastMessage(null), 4000);
   };
 
-  const handleInitiateRespondSwap = (req: TukarJadwalRequest, accept: boolean) => {
+  const handleInitiateRespondSwap = async (req: TukarJadwalRequest, accept: boolean) => {
     if (accept) {
       const success = respondTukarJadwalRequest(req.id, true);
       if (success) {
+        try {
+          const { saveTukarJadwalRequestsSupabase, saveJadwalMatrixSupabase } = await import('@/lib/supabaseClient');
+          await saveJadwalMatrixSupabase(mockJadwalMatrix);
+          await saveTukarJadwalRequestsSupabase(mockTukarJadwalRequests);
+        } catch (err) {}
         refreshData();
         setToastMessage('✓ Penukaran jadwal disetujui! Matriks jadwal telah diperbarui otomatis.');
         setTimeout(() => setToastMessage(null), 4000);
@@ -200,7 +223,7 @@ export default function JadwalPage() {
     }
   };
 
-  const handleConfirmReject = (e: React.FormEvent) => {
+  const handleConfirmReject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rejectModalData) return;
     if (!rejectionReason.trim()) {
@@ -211,6 +234,10 @@ export default function JadwalPage() {
     setIsProcessingReject(true);
     const success = respondTukarJadwalRequest(rejectModalData.id, false, rejectionReason.trim());
     if (success) {
+      try {
+        const { saveTukarJadwalRequestsSupabase } = await import('@/lib/supabaseClient');
+        await saveTukarJadwalRequestsSupabase(mockTukarJadwalRequests);
+      } catch (err) {}
       refreshData();
       setIsProcessingReject(false);
       setRejectModalData(null);
@@ -510,7 +537,8 @@ export default function JadwalPage() {
                         return;
                       }
                       const [guruId, hari, sesiId] = e.target.value.split('::');
-                      const guru = mockGuru.find((g) => g.id === guruId);
+                      const list = teachersList.length > 0 ? teachersList : mockGuru;
+                      const guru = list.find((g) => g.id === guruId || g.nama === guruId);
                       const sesi = sesiList.find((s) => s.id === sesiId);
                       setSelectedTargetSlot({
                         guruId,
@@ -525,14 +553,15 @@ export default function JadwalPage() {
                     <option value="">-- Pilih Jadwal Guru Lain --</option>
                     {matrixList.map((entry) => {
                       const sesi = sesiList.find((s) => s.id === entry.sesiId);
+                      const list = teachersList.length > 0 ? teachersList : mockGuru;
                       return entry.guruIds
                         .filter((gid) => gid !== activeGuru.id)
                         .map((gid) => {
-                          const g = mockGuru.find((guru) => guru.id === gid);
+                          const g = list.find((guru) => guru.id === gid || guru.nama === gid);
                           if (!g) return null;
                           return (
                             <option key={`${entry.id}-${gid}`} value={`${gid}::${entry.hari}::${entry.sesiId}`}>
-                              {g.nama.split(',')[0]} — {entry.hari}, {sesi?.nama || entry.sesiId} ({sesi?.jamMulai}–{sesi?.jamSelesai})
+                              {g.nama.split(',')[0]} — {entry.hari}, {sesi?.nama || entry.sesiId} ({sesi?.jamMulai || '19:00'}–{sesi?.jamSelesai || '20:30'})
                             </option>
                           );
                         });
