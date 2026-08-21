@@ -53,10 +53,13 @@ export interface SendScheduleEmailParams {
   guruEmail: string;
   jadwalList: Array<{
     hari: string;
-    mataPelajaran: string;
+    mataPelajaran?: string;
+    namaJadwal?: string;
+    keterangan?: string;
+    deskripsi?: string;
     jamMulai: string;
     jamSelesai: string;
-    kelas: string;
+    kelas?: string;
     ruangan?: string;
     catatan?: string;
   }>;

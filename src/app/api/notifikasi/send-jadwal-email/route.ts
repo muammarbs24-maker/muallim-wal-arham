@@ -3,12 +3,15 @@ import nodemailer from 'nodemailer';
 
 export interface JadwalItemEmail {
   hari: string;
-  mataPelajaran: string;
+  mataPelajaran?: string;
+  namaJadwal?: string;
+  keterangan?: string;
+  deskripsi?: string;
+  catatan?: string;
   jamMulai: string;
   jamSelesai: string;
-  kelas: string;
+  kelas?: string;
   ruangan?: string;
-  catatan?: string;
 }
 
 export async function POST(request: Request) {
@@ -69,16 +72,16 @@ export async function POST(request: Request) {
       // 1 Jadwal di Hari Ini
       if (dayItems.length === 1) {
         const item = dayItems[0];
+        const nama = item.namaJadwal || item.mataPelajaran || 'Kelas Mengajar';
+        const ket = item.keterangan || item.deskripsi || item.catatan || '';
         return `
           <tr style="border-bottom: 1px solid #e2e8f0; background-color: #ffffff;">
             <td style="padding: 12px 14px; font-weight: 800; color: #0f172a; font-size: 13px; border-right: 1px solid #e2e8f0; vertical-align: middle; width: 110px; background-color: #f8fafc;">
               ${day}
             </td>
             <td style="padding: 12px 14px; color: #0f172a; font-size: 13px; border-right: 1px solid #e2e8f0; vertical-align: middle;">
-              <div style="font-weight: 700; color: #1e293b;">${item.mataPelajaran}</div>
-              <div style="font-size: 11.5px; color: #64748b; font-weight: 500; margin-top: 2px;">
-                ${item.kelas}${item.ruangan ? ` &bull; ${item.ruangan}` : ''}
-              </div>
+              <div style="font-weight: 700; color: #1e293b; font-size: 13.5px;">${nama}</div>
+              ${ket ? `<div style="font-size: 11.5px; color: #64748b; font-weight: 500; margin-top: 3px;">${ket}</div>` : ''}
             </td>
             <td style="padding: 12px 14px; color: #166534; font-weight: 800; font-size: 12.5px; font-family: monospace; white-space: nowrap; vertical-align: middle; text-align: right; width: 145px;">
               ${item.jamMulai}–${item.jamSelesai} WITA
@@ -91,6 +94,8 @@ export async function POST(request: Request) {
       return dayItems.map((item, idx) => {
         const isFirst = idx === 0;
         const isLast = idx === dayItems.length - 1;
+        const nama = item.namaJadwal || item.mataPelajaran || 'Kelas Mengajar';
+        const ket = item.keterangan || item.deskripsi || item.catatan || '';
         return `
           <tr style="border-bottom: ${isLast ? '1px solid #e2e8f0' : '1px dashed #e2e8f0'}; background-color: #ffffff;">
             ${isFirst ? `
@@ -102,10 +107,8 @@ export async function POST(request: Request) {
               </td>
             ` : ''}
             <td style="padding: 10px 14px; color: #0f172a; font-size: 13px; border-right: 1px solid #e2e8f0; vertical-align: middle;">
-              <div style="font-weight: 700; color: #1e293b;">${item.mataPelajaran}</div>
-              <div style="font-size: 11.5px; color: #64748b; font-weight: 500; margin-top: 2px;">
-                ${item.kelas}${item.ruangan ? ` &bull; ${item.ruangan}` : ''}
-              </div>
+              <div style="font-weight: 700; color: #1e293b; font-size: 13.5px;">${nama}</div>
+              ${ket ? `<div style="font-size: 11.5px; color: #64748b; font-weight: 500; margin-top: 3px;">${ket}</div>` : ''}
             </td>
             <td style="padding: 10px 14px; color: #166534; font-weight: 800; font-size: 12.5px; font-family: monospace; white-space: nowrap; vertical-align: middle; text-align: right; width: 145px;">
               ${item.jamMulai}–${item.jamSelesai} WITA
@@ -163,7 +166,7 @@ export async function POST(request: Request) {
                     <thead>
                       <tr style="background-color: #1e293b; text-align: left; color: #ffffff;">
                         <th style="padding: 11px 14px; font-size: 11px; font-weight: 800; text-transform: uppercase; width: 110px;">Hari</th>
-                        <th style="padding: 11px 14px; font-size: 11px; font-weight: 800; text-transform: uppercase;">Sesi &amp; Pelajaran</th>
+                        <th style="padding: 11px 14px; font-size: 11px; font-weight: 800; text-transform: uppercase;">Nama Jadwal &amp; Keterangan</th>
                         <th style="padding: 11px 14px; font-size: 11px; font-weight: 800; text-transform: uppercase; text-align: right; width: 145px;">Waktu (WITA)</th>
                       </tr>
                     </thead>

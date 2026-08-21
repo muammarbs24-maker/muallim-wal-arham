@@ -209,10 +209,10 @@ export default function AturJadwalGuruPage() {
       const guruScheduleList: Array<{
         hari: string;
         mataPelajaran: string;
+        namaJadwal?: string;
+        keterangan?: string;
         jamMulai: string;
         jamSelesai: string;
-        kelas: string;
-        ruangan?: string;
       }> = [];
 
       matrixState.forEach((entry) => {
@@ -222,10 +222,10 @@ export default function AturJadwalGuruPage() {
             guruScheduleList.push({
               hari: entry.hari,
               mataPelajaran: sesi.nama,
+              namaJadwal: sesi.nama,
+              keterangan: sesi.deskripsi || '',
               jamMulai: sesi.jamMulai,
               jamSelesai: sesi.jamSelesai,
-              kelas: guru.jabatan || sesi.nama,
-              ruangan: 'Ruang Halaqah / Kelas Yayasan',
             });
           }
         }
