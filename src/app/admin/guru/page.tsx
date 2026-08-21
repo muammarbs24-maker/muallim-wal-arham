@@ -153,19 +153,21 @@ export default function AdminGuruPage() {
           borderRadius: 'var(--radius-md)',
           marginBottom: 'var(--space-4)',
           display: 'flex',
+          flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: 8,
           border: '1px solid rgba(27,107,74,0.2)',
           fontSize: 'var(--font-size-xs)',
           color: 'var(--color-text-secondary)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Key size={16} color="var(--color-primary)" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 240 }}>
+            <Key size={16} color="var(--color-primary)" style={{ flexShrink: 0 }} />
             <span>
               <strong>Alur Guru Baru:</strong> Daftarkan email guru di sini. Guru akan login menggunakan emailnya dan kata sandi default <code>{authConfig.defaultGuruPassword}</code>, lalu sistem akan otomatis meminta guru memperbarui kata sandinya.
             </span>
           </div>
-          <span className="badge badge-primary" style={{ fontSize: 10 }}>Password Default: {authConfig.defaultGuruPassword}</span>
+          <span className="badge badge-primary" style={{ fontSize: 10, flexShrink: 0 }}>Password Default: {authConfig.defaultGuruPassword}</span>
         </div>
 
         {/* Filters */}
