@@ -540,6 +540,11 @@ export function createTukarJadwalRequest(data: Omit<TukarJadwalRequest, 'id' | '
   mockTukarJadwalRequests.unshift(newReq);
   savePersistedTukarJadwal(mockTukarJadwalRequests);
 
+  // Sync to Supabase Cloud Database!
+  import('./supabaseClient').then(({ saveTukarJadwalRequestsSupabase }) => {
+    saveTukarJadwalRequestsSupabase(mockTukarJadwalRequests).catch(() => {});
+  }).catch(() => {});
+
   // Add in-app notification for the target teacher
   const notif: Notifikasi = {
     id: `notif-${Date.now()}`,
@@ -576,11 +581,12 @@ export function createTukarJadwalRequest(data: Omit<TukarJadwalRequest, 'id' | '
   return newReq;
 }
 
-export function respondTukarJadwalRequest(requestId: string, accept: boolean): boolean {
+export function respondTukarJadwalRequest(requestId: string, accept: boolean, alasanPenolakan?: string): boolean {
   const req = mockTukarJadwalRequests.find((r) => r.id === requestId);
   if (!req || req.status !== 'pending') return false;
 
   req.status = accept ? 'disetujui' : 'ditolak';
+  req.alasanPenolakan = alasanPenolakan || '';
   req.diresponPada = new Date().toISOString();
 
   if (accept) {
@@ -615,6 +621,11 @@ export function respondTukarJadwalRequest(requestId: string, accept: boolean): b
     savePersistedJadwalMatrix(mockJadwalMatrix);
     syncMatrixToJadwal();
 
+    // Sync updated matrix to Supabase!
+    import('./supabaseClient').then(({ saveJadwalMatrixSupabase }) => {
+      saveJadwalMatrixSupabase(mockJadwalMatrix).catch(() => {});
+    }).catch(() => {});
+
     // Notify requester teacher that request was accepted
     mockNotifikasi.unshift({
       id: `notif-${Date.now()}`,
@@ -627,11 +638,12 @@ export function respondTukarJadwalRequest(requestId: string, accept: boolean): b
     });
   } else {
     // Notify requester teacher that request was rejected
+    const reasonText = alasanPenolakan ? ` (Alasan: ${alasanPenolakan})` : '';
     mockNotifikasi.unshift({
       id: `notif-${Date.now()}`,
       guruId: req.requesterGuruId,
       judul: '❌ Tukar Jadwal Ditolak',
-      pesan: `Mohon maaf, ${req.targetGuruNama} belum dapat bertukar jadwal untuk sesi ${req.targetHari} - ${req.targetSesiNama}.`,
+      pesan: `Mohon maaf, ${req.targetGuruNama} belum dapat bertukar jadwal untuk sesi ${req.targetHari} - ${req.targetSesiNama}.${reasonText}`,
       tipe: 'tukar_jadwal',
       dibaca: false,
       dibuatPada: new Date().toISOString(),
@@ -639,6 +651,11 @@ export function respondTukarJadwalRequest(requestId: string, accept: boolean): b
   }
 
   savePersistedTukarJadwal(mockTukarJadwalRequests);
+
+  // Sync decision to Supabase!
+  import('./supabaseClient').then(({ saveTukarJadwalRequestsSupabase }) => {
+    saveTukarJadwalRequestsSupabase(mockTukarJadwalRequests).catch(() => {});
+  }).catch(() => {});
 
   // Email notifications for decision
   import('./emailService').then(({ sendScheduleSwapEmail }) => {
@@ -651,6 +668,7 @@ export function respondTukarJadwalRequest(requestId: string, accept: boolean): b
         requesterNama: req.targetGuruNama,
         requesterJadwal: `${req.targetHari}, ${req.targetSesiNama}`,
         targetJadwal: `${req.requesterHari}, ${req.requesterSesiNama}`,
+        catatan: accept ? '' : (alasanPenolakan || ''),
       }).catch((e) => console.error('Error sending swap decision email:', e));
     }
   }).catch(() => {});

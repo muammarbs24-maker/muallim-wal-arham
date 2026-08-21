@@ -39,6 +39,11 @@ export default function JadwalPage() {
   const [swapCatatan, setSwapCatatan] = useState('');
   const [isSubmittingSwap, setIsSubmittingSwap] = useState(false);
 
+  // Modal Penolakan Tukar Jadwal State
+  const [rejectModalData, setRejectModalData] = useState<{ id: string; requesterNama: string; sesiInfo: string } | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [isProcessingReject, setIsProcessingReject] = useState(false);
+
   const refreshData = () => {
     loadPersistedData();
     syncMatrixToJadwal();
@@ -69,9 +74,15 @@ export default function JadwalPage() {
           setActiveGuru(found);
         }
       }
+
+      // Check ?tab=tukar in URL
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('tab') === 'tukar') {
+        setActiveTab('tukar');
+      }
     }
 
-    import('@/lib/supabaseClient').then(({ getJadwalMatrixSupabase, getSesiListSupabase, getAppSettingsSupabase }) => {
+    import('@/lib/supabaseClient').then(({ getJadwalMatrixSupabase, getSesiListSupabase, getAppSettingsSupabase, getTukarJadwalRequestsSupabase }) => {
       getSesiListSupabase().then((sessions) => {
         if (sessions && sessions.length > 0) {
           mockSesiList.length = 0;
@@ -89,6 +100,14 @@ export default function JadwalPage() {
           syncMatrixToJadwal();
           setMatrixList([...mockJadwalMatrix]);
           setSchedulesList([...mockJadwal]);
+        }
+      }).catch(() => {});
+
+      getTukarJadwalRequestsSupabase().then((requests) => {
+        if (Array.isArray(requests)) {
+          mockTukarJadwalRequests.length = 0;
+          mockTukarJadwalRequests.push(...requests);
+          setSwapRequests([...requests]);
         }
       }).catch(() => {});
 
@@ -162,15 +181,41 @@ export default function JadwalPage() {
     }, 400);
   };
 
-  const handleRespondSwap = (requestId: string, accept: boolean) => {
-    const success = respondTukarJadwalRequest(requestId, accept);
+  const handleInitiateRespondSwap = (req: TukarJadwalRequest, accept: boolean) => {
+    if (accept) {
+      const success = respondTukarJadwalRequest(req.id, true);
+      if (success) {
+        refreshData();
+        setToastMessage('✓ Penukaran jadwal disetujui! Matriks jadwal telah diperbarui otomatis.');
+        setTimeout(() => setToastMessage(null), 4000);
+      }
+    } else {
+      // Buka modal alasan penolakan
+      setRejectModalData({
+        id: req.id,
+        requesterNama: req.requesterGuruNama,
+        sesiInfo: `${req.requesterHari} (${req.requesterSesiNama}) ⇄ ${req.targetHari} (${req.targetSesiNama})`,
+      });
+      setRejectionReason('');
+    }
+  };
+
+  const handleConfirmReject = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rejectModalData) return;
+    if (!rejectionReason.trim()) {
+      alert('Mohon tuliskan alasan penolakan.');
+      return;
+    }
+
+    setIsProcessingReject(true);
+    const success = respondTukarJadwalRequest(rejectModalData.id, false, rejectionReason.trim());
     if (success) {
       refreshData();
-      setToastMessage(
-        accept
-          ? '✓ Penukaran jadwal disetujui! Matriks jadwal telah diperbarui otomatis.'
-          : '✓ Permintaan tukar jadwal telah ditolak.'
-      );
+      setIsProcessingReject(false);
+      setRejectModalData(null);
+      setRejectionReason('');
+      setToastMessage('✓ Permintaan tukar jadwal telah ditolak dengan alasan yang tercatat.');
       setTimeout(() => setToastMessage(null), 4000);
     }
   };
@@ -339,12 +384,63 @@ export default function JadwalPage() {
           <TukarJadwalManagement
             incoming={incomingPendingRequests}
             outgoing={outgoingRequests}
-            onRespond={handleRespondSwap}
+            onRespond={handleInitiateRespondSwap}
             onOpenModal={() => handleOpenSwapModal()}
           />
         )}
 
       </div>
+
+      {/* MODAL ALASAN PENOLAKAN TUKAR JADWAL */}
+      {rejectModalData && (
+        <div className="modal-overlay" onClick={() => setRejectModalData(null)}>
+          <div className="modal" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: 'var(--font-size-base)', fontWeight: 800, color: '#B91C1C', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <X size={18} /> Tolak Permintaan Tukar Jadwal
+              </h3>
+            </div>
+            <form onSubmit={handleConfirmReject}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                  Anda akan menolak permintaan tukar jadwal dari <strong>{rejectModalData.requesterNama}</strong> ({rejectModalData.sesiInfo}).
+                </p>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontWeight: 700, fontSize: 12 }}>
+                    Masukkan Alasan Penolakan *
+                  </label>
+                  <textarea
+                    className="form-input"
+                    rows={3}
+                    placeholder="cth: Mohon maaf di waktu tersebut saya ada agenda mengajar di tempat lain..."
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    required
+                    style={{ resize: 'vertical', fontSize: 13 }}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setRejectModalData(null)}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-danger btn-sm"
+                  disabled={isProcessingReject || !rejectionReason.trim()}
+                  style={{ background: '#DC2626', color: '#ffffff', fontWeight: 700 }}
+                >
+                  {isProcessingReject ? 'Menyimpan...' : 'Kirim Penolakan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL REQUEST TUKAR JADWAL */}
       {showSwapModal && (
@@ -753,7 +849,7 @@ function TukarJadwalManagement({
 }: {
   incoming: TukarJadwalRequest[];
   outgoing: TukarJadwalRequest[];
-  onRespond: (id: string, accept: boolean) => void;
+  onRespond: (req: TukarJadwalRequest, accept: boolean) => void;
   onOpenModal: () => void;
 }) {
   return (
@@ -819,18 +915,18 @@ function TukarJadwalManagement({
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
-                    onClick={() => onRespond(req.id, false)}
+                    onClick={() => onRespond(req, false)}
                     style={{ color: 'var(--color-danger)', borderColor: 'rgba(239,68,68,0.3)', display: 'flex', alignItems: 'center', gap: 4 }}
                   >
-                    <X size={14} /> Tolak
+                    <X size={14} /> Tolak Permintaan
                   </button>
                   <button
                     type="button"
                     className="btn btn-primary btn-sm"
-                    onClick={() => onRespond(req.id, true)}
+                    onClick={() => onRespond(req, true)}
                     style={{ display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700 }}
                   >
-                    <Check size={14} /> Setujui &amp; Tukar
+                    <Check size={14} /> Terima &amp; Tukar Jadwal
                   </button>
                 </div>
               </div>
@@ -871,6 +967,11 @@ function TukarJadwalManagement({
                   <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>
                     Jadwal Anda: {req.requesterHari}, {req.requesterSesiNama}
                   </div>
+                  {req.status === 'ditolak' && req.alasanPenolakan && (
+                    <div style={{ fontSize: 11, color: '#DC2626', marginTop: 4, fontStyle: 'italic' }}>
+                      ❌ Alasan penolakan: &ldquo;{req.alasanPenolakan}&rdquo;
+                    </div>
+                  )}
                 </div>
 
                 <span className={`badge ${

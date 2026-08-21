@@ -219,6 +219,7 @@ export interface TukarJadwalRequest {
 
   catatan?: string;
   status: 'pending' | 'disetujui' | 'ditolak';
+  alasanPenolakan?: string;
   dibuatPada: string;
   diresponPada?: string;
 }

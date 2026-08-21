@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Guru, JadwalSesiEntry, AbsensiRecord, AppSettings, Kegiatan, KegiatanPartisipasi, MasterAdminAccount, SesiConfig } from '@/types';
+import type { Guru, JadwalSesiEntry, AbsensiRecord, AppSettings, Kegiatan, KegiatanPartisipasi, MasterAdminAccount, SesiConfig, TukarJadwalRequest } from '@/types';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hymwqulohlxeyjhvamky.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_vnVsFvRLJalZgb76SgB7wA_yW94xuny';
@@ -203,6 +203,44 @@ export async function saveJadwalMatrixSupabase(entries: JadwalSesiEntry[]): Prom
     return true;
   } catch (err) {
     console.error('Error saveJadwalMatrixSupabase:', err);
+    return false;
+  }
+}
+
+/**
+ * 3B. TUKAR JADWAL REQUESTS SERVICE
+ */
+export async function getTukarJadwalRequestsSupabase(): Promise<TukarJadwalRequest[]> {
+  try {
+    const { data, error } = await supabase
+      .from('jadwal_matrix')
+      .select('*')
+      .eq('id', '__tukar_jadwal_requests__')
+      .single();
+
+    if (error || !data || !data.sesi_id) return [];
+    const parsed = JSON.parse(data.sesi_id);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    console.error('Error getTukarJadwalRequestsSupabase:', err);
+    return [];
+  }
+}
+
+export async function saveTukarJadwalRequestsSupabase(requests: TukarJadwalRequest[]): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('jadwal_matrix')
+      .upsert({
+        id: '__tukar_jadwal_requests__',
+        hari: 'senin',
+        sesi_id: JSON.stringify(requests),
+        guru_ids: [],
+      }, { onConflict: 'id' });
+
+    return !error;
+  } catch (err) {
+    console.error('Error saveTukarJadwalRequestsSupabase:', err);
     return false;
   }
 }
