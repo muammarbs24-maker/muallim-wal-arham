@@ -70,7 +70,7 @@ export default function AdminPerformaPage() {
 
       <div className="admin-content">
         {/* Top 3 Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
+        <div className="admin-grid-3">
           {performaData.slice(0, 3).map((p, i) => (
             <div key={p.guru.id} className="card" style={{ position: 'relative', overflow: 'visible' }}>
               {i === 0 && (

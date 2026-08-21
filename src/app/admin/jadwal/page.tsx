@@ -223,7 +223,7 @@ export default function AdminJadwalPage() {
         </div>
 
         {/* ─── TWO ACTION TILES ─── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)', marginBottom: 'var(--space-5)' }}>
+        <div className="admin-grid-1-1">
           {/* Card 1: Sesi */}
           <Link
             href="/admin/jadwal/sesi"

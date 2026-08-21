@@ -530,7 +530,7 @@ export default function AdminPengaturanPage() {
               </div>
 
               {/* Coordinates Inputs */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+              <div className="admin-grid-1-1">
                 <div className="form-group">
                   <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     Latitude {!isEditingLocation && <Lock size={12} color="var(--color-text-tertiary)" />}
@@ -1029,7 +1029,7 @@ function AdminSecurityForm() {
         </div>
 
         {/* Password Baru */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+        <div className="admin-grid-1-1">
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label" style={{ fontSize: 11, fontWeight: 700 }}>
               Kata Sandi Baru (Opsional)
@@ -1403,7 +1403,7 @@ function OwnerReportEmailForm() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+      <div className="admin-grid-1-1">
         <div className="form-group">
           <label className="form-label" style={{ fontWeight: 700 }}>
             Nama Pemilik / Pimpinan

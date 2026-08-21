@@ -347,7 +347,7 @@ export default function AdminGuruPage() {
                 </div>
 
                 {/* Jabatan & Status */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+                <div className="admin-grid-1-1">
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label" style={{ fontSize: 11, fontWeight: 700 }}>
                       Jabatan / Peran
@@ -381,7 +381,7 @@ export default function AdminGuruPage() {
                 </div>
 
                 {/* NIP & No WhatsApp */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: 'var(--space-3)' }}>
+                <div className="admin-grid-1-1">
                   <div className="form-group" style={{ marginBottom: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <label className="form-label" style={{ fontSize: 11, fontWeight: 700, marginBottom: 0 }}>

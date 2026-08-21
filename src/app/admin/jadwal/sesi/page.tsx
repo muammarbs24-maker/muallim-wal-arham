@@ -141,7 +141,7 @@ export default function EditSesiPage() {
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+                <div className="admin-grid-1-1">
                   <div className="form-group">
                     <label className="form-label" style={{ fontWeight: 700 }}>Jam Mulai *</label>
                     <input
@@ -318,7 +318,7 @@ export default function EditSesiPage() {
                 </div>
 
                 <div className="card-body">
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1.5fr', gap: 'var(--space-3)' }}>
+                  <div className="admin-grid-4">
                     
                     {/* Nama Sesi */}
                     <div className="form-group">

@@ -369,7 +369,7 @@ export default function AdminGuruDetailPage() {
       </div>
 
       <div className="admin-content">
-        <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 'var(--space-5)' }}>
+        <div className="admin-grid-2-1">
           {/* Left Column */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             {/* Profile Card */}
@@ -517,7 +517,7 @@ export default function AdminGuruDetailPage() {
                   />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+                <div className="admin-grid-1-1">
                   <div className="form-group">
                     <label className="form-label" style={{ fontWeight: 700 }}>NIP Yayasan *</label>
                     <input
@@ -540,7 +540,7 @@ export default function AdminGuruDetailPage() {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+                <div className="admin-grid-1-1">
                   <div className="form-group">
                     <label className="form-label" style={{ fontWeight: 700 }}>Jabatan / Peran</label>
                     <select
