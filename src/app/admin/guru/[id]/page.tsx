@@ -314,29 +314,43 @@ export default function AdminGuruDetailPage() {
         </div>
       )}
 
-      {/* Topbar */}
-      <div className="admin-topbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-          <button className="btn btn-ghost btn-sm" style={{ padding: 8 }} onClick={() => router.back()}>
+      {/* Topbar & Mobile Action Bar */}
+      <div className="admin-topbar" style={{ flexWrap: 'wrap', gap: 12, height: 'auto', minHeight: 'var(--header-height)', padding: '12px var(--space-6)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: '1 1 auto' }}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            style={{ padding: 8, borderRadius: 'var(--radius-md)', flexShrink: 0 }}
+            onClick={() => router.push('/admin/guru')}
+            aria-label="Kembali ke Daftar Guru"
+          >
             <ArrowLeft size={18} />
           </button>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <h1 style={{ fontSize: 'var(--font-size-lg)', fontWeight: 800 }}>Detail Guru</h1>
-              <span className={`badge ${guru.aktif ? 'badge-success' : 'badge-danger'}`} style={{ fontSize: 11 }}>
-                {guru.aktif ? '● Aktif Mengajar' : '○ Akun Nonaktif'}
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <h1 style={{ fontSize: 'var(--font-size-lg)', fontWeight: 800, margin: 0, color: 'var(--color-text-primary)', whiteSpace: 'nowrap' }}>
+                Detail Guru
+              </h1>
+              <span
+                className={`badge ${guru.aktif ? 'badge-success' : 'badge-danger'}`}
+                style={{ fontSize: 11, padding: '3px 8px', fontWeight: 700 }}
+              >
+                {guru.aktif ? '● Aktif' : '○ Nonaktif'}
               </span>
             </div>
-            <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>{guru.nip}</p>
+            <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', margin: '2px 0 0', fontFamily: 'monospace', fontWeight: 600 }}>
+              {guru.nip}
+            </p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+        {/* Action Buttons (Desktop & Mobile) */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', flexShrink: 0, width: 'auto' }} className="guru-detail-actions">
           <button
             type="button"
             className="btn btn-secondary btn-sm"
             onClick={() => setShowEditModal(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700, padding: '8px 14px' }}
           >
             <Edit3 size={14} /> Edit Data
           </button>
@@ -350,9 +364,17 @@ export default function AdminGuruDetailPage() {
                 setActionStep('choose');
                 setShowActionModal(true);
               }}
-              style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
+              style={{
+                borderColor: 'var(--color-danger)',
+                color: 'var(--color-danger)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontWeight: 700,
+                padding: '8px 14px',
+              }}
             >
-              <Trash2 size={14} /> Hapus Guru
+              <Trash2 size={14} /> Hapus / Nonaktifkan
             </button>
           ) : (
             <button
@@ -360,7 +382,13 @@ export default function AdminGuruDetailPage() {
               className="btn btn-primary btn-sm"
               onClick={handleReactivateGuru}
               disabled={isProcessingAction}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontWeight: 700,
+                padding: '8px 14px',
+              }}
             >
               <UserCheck size={15} /> {isProcessingAction ? 'Mengaktifkan...' : 'Aktifkan Kembali'}
             </button>
@@ -368,78 +396,349 @@ export default function AdminGuruDetailPage() {
         </div>
       </div>
 
-      <div className="admin-content">
-        <div className="admin-grid-2-1">
-          {/* Left Column */}
+      <div className="admin-content" style={{ maxWidth: 1200, margin: '0 auto', width: '100%' }}>
+        <div className="admin-grid-2-1" style={{ alignItems: 'flex-start' }}>
+          {/* Left Column — Profil & Performa */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-            {/* Profile Card */}
-            <div className="card">
-              <div style={{ background: guru.aktif ? 'var(--color-primary)' : '#475569', padding: 'var(--space-6)', textAlign: 'center', position: 'relative' }}>
-                <div className="avatar avatar-xl" style={{ margin: '0 auto var(--space-3)', border: '3px solid rgba(255,255,255,0.3)', color: 'white', background: 'rgba(255,255,255,0.2)' }}>
+            
+            {/* 1. Profile Card */}
+            <div className="card" style={{ padding: 0, overflow: 'hidden', border: '1px solid var(--color-border)' }}>
+              {/* Header Profile with Gradient */}
+              <div style={{
+                background: guru.aktif
+                  ? 'linear-gradient(135deg, #134e4a 0%, #166534 50%, #1B6B4A 100%)'
+                  : 'linear-gradient(135deg, #334155 0%, #475569 100%)',
+                padding: '24px 20px',
+                textAlign: 'center',
+                position: 'relative',
+                color: 'white',
+              }}>
+                <div
+                  className="avatar avatar-xl"
+                  style={{
+                    margin: '0 auto 12px',
+                    border: '3px solid rgba(255,255,255,0.4)',
+                    color: 'white',
+                    background: 'rgba(255,255,255,0.2)',
+                    fontSize: 24,
+                    fontWeight: 800,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  }}
+                >
                   {getInitials(guru.nama)}
                 </div>
-                <div style={{ color: 'white', fontWeight: 700, fontSize: 'var(--font-size-base)' }}>{guru.nama}</div>
-                <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 'var(--font-size-sm)', marginTop: 4 }}>{guru.jabatan}</div>
-                <span style={{ display: 'inline-block', background: 'rgba(255,255,255,0.2)', color: 'white', padding: '3px 10px', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-xs)', marginTop: 8 }}>
+
+                <h2 style={{ fontSize: 'var(--font-size-base)', fontWeight: 800, margin: '0 0 4px', color: '#ffffff' }}>
+                  {guru.nama}
+                </h2>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    background: 'rgba(255,255,255,0.2)',
+                    backdropFilter: 'blur(4px)',
+                    color: '#ffffff',
+                    padding: '3px 10px',
+                    borderRadius: 9999,
+                    fontSize: 11,
+                    fontWeight: 700,
+                  }}>
+                    {guru.jabatan}
+                  </span>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    background: 'rgba(255,255,255,0.15)',
+                    color: '#ffffff',
+                    padding: '3px 10px',
+                    borderRadius: 9999,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    textTransform: 'capitalize',
+                  }}>
+                    {guru.statusKepegawaian === 'tetap' ? 'Guru Tetap' : guru.statusKepegawaian === 'honorer' ? 'Honorer' : 'Magang'}
+                  </span>
+                </div>
+
+                <div style={{
+                  display: 'inline-block',
+                  background: 'rgba(0,0,0,0.2)',
+                  color: 'rgba(255,255,255,0.9)',
+                  padding: '3px 12px',
+                  borderRadius: 6,
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                  fontWeight: 600,
+                  marginTop: 10,
+                }}>
                   NIP: {guru.nip}
-                </span>
+                </div>
               </div>
-              <div className="card-body" style={{ padding: 0 }}>
-                {[
-                  { icon: <Phone size={14} />, value: guru.telepon || '—' },
-                  { icon: <Mail size={14} />, value: guru.email },
-                  { icon: <MapPin size={14} />, value: guru.alamat || '—' },
-                  { icon: <Calendar size={14} />, value: `Bergabung ${new Date(guru.tanggalGabung).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}` },
-                ].map((item, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)', padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--color-border-light)' }}>
-                    <span style={{ color: 'var(--color-text-tertiary)', marginTop: 1 }}>{item.icon}</span>
-                    <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>{item.value}</span>
+
+              {/* Contact & Detail Info */}
+              <div style={{ padding: '8px 0' }}>
+                {/* Telepon / WhatsApp */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid var(--color-border-light)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--color-surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary)', flexShrink: 0 }}>
+                      <Phone size={15} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10.5, color: 'var(--color-text-tertiary)', fontWeight: 600 }}>Nomor Telepon / WA</div>
+                      <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                        {guru.telepon || '—'}
+                      </div>
+                    </div>
                   </div>
-                ))}
+                  {guru.telepon && (
+                    <a
+                      href={`https://wa.me/${guru.telepon.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-ghost btn-sm"
+                      style={{ fontSize: 11, color: 'var(--color-success)', padding: '4px 8px', fontWeight: 700 }}
+                    >
+                      Hubungi
+                    </a>
+                  )}
+                </div>
+
+                {/* Email */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid var(--color-border-light)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--color-surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary)', flexShrink: 0 }}>
+                      <Mail size={15} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10.5, color: 'var(--color-text-tertiary)', fontWeight: 600 }}>Email</div>
+                      <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--color-text-primary)', wordBreak: 'break-all' }}>
+                        {guru.email}
+                      </div>
+                    </div>
+                  </div>
+                  <a
+                    href={`mailto:${guru.email}`}
+                    className="btn btn-ghost btn-sm"
+                    style={{ fontSize: 11, color: 'var(--color-primary)', padding: '4px 8px', fontWeight: 700 }}
+                  >
+                    Kirim
+                  </a>
+                </div>
+
+                {/* Alamat */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 16px', borderBottom: '1px solid var(--color-border-light)' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--color-surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary)', flexShrink: 0, marginTop: 2 }}>
+                    <MapPin size={15} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10.5, color: 'var(--color-text-tertiary)', fontWeight: 600 }}>Alamat Tempat Tinggal</div>
+                    <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>
+                      {guru.alamat || 'Belum diisi'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tanggal Bergabung */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--color-surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-primary)', flexShrink: 0 }}>
+                    <Calendar size={15} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10.5, color: 'var(--color-text-tertiary)', fontWeight: 600 }}>Tanggal Bergabung</div>
+                    <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                      {new Date(guru.tanggalGabung).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Score Summary */}
-            <div className="card">
-              <div className="card-header">
-                <span style={{ fontWeight: 700, fontSize: 'var(--font-size-sm)' }}>Ringkasan Performa</span>
+            {/* 2. Ringkasan Performa Card */}
+            <div className="card" style={{ border: '1px solid var(--color-border)' }}>
+              <div className="card-header" style={{ padding: '14px 16px', borderBottom: '1px solid var(--color-border-light)' }}>
+                <span style={{ fontWeight: 800, fontSize: 'var(--font-size-sm)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <TrendingUp size={16} color="var(--color-primary)" /> Ringkasan Performa Bulan Ini
+                </span>
               </div>
-              <div className="card-body">
-                <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: 'var(--space-5)' }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 'var(--font-size-3xl)', fontWeight: 800, color: gradeColor }}>{skor.skor}</div>
-                    <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>Skor Disiplin</div>
-                    <span className="badge" style={{ marginTop: 4, background: `${gradeColor}15`, color: gradeColor }}>{skor.grade}</span>
+              <div className="card-body" style={{ padding: 16 }}>
+                {/* 2 Big Score Metrics */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+                  <div style={{
+                    padding: '14px 12px',
+                    borderRadius: 12,
+                    background: 'var(--color-surface-2)',
+                    border: '1px solid var(--color-border-light)',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{ fontSize: 28, fontWeight: 900, color: gradeColor, lineHeight: 1.1 }}>
+                      {skor.skor}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', fontWeight: 700, marginTop: 4 }}>
+                      Skor Disiplin
+                    </div>
+                    <span
+                      className="badge"
+                      style={{
+                        marginTop: 6,
+                        background: `${gradeColor}18`,
+                        color: gradeColor,
+                        fontWeight: 800,
+                        fontSize: 10,
+                        border: `1px solid ${gradeColor}30`,
+                      }}
+                    >
+                      {skor.grade}
+                    </span>
                   </div>
-                  <div style={{ width: 1, background: 'var(--color-border)' }} />
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 'var(--font-size-3xl)', fontWeight: 800, color: 'var(--color-accent)' }}>{poin.poinTotal}</div>
-                    <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>Poin Partisipasi</div>
+
+                  <div style={{
+                    padding: '14px 12px',
+                    borderRadius: 12,
+                    background: 'var(--color-surface-2)',
+                    border: '1px solid var(--color-border-light)',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--color-accent)', lineHeight: 1.1 }}>
+                      {poin.poinTotal}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', fontWeight: 700, marginTop: 4 }}>
+                      Poin Partisipasi
+                    </div>
+                    <span
+                      className="badge"
+                      style={{
+                        marginTop: 6,
+                        background: 'rgba(217, 119, 6, 0.12)',
+                        color: 'var(--color-accent)',
+                        fontWeight: 800,
+                        fontSize: 10,
+                        border: '1px solid rgba(217, 119, 6, 0.25)',
+                      }}
+                    >
+                      ★ {poin.hadir} Kegiatan
+                    </span>
                   </div>
                 </div>
-                {[
-                  { label: 'Hadir Tepat Waktu', value: skor.hadirTepatWaktu, color: 'var(--color-success)' },
-                  { label: 'Terlambat', value: skor.terlambat, color: 'var(--color-warning)' },
-                  { label: 'Izin', value: skor.izin, color: 'var(--color-info)' },
-                  { label: 'Sakit', value: skor.sakit, color: 'var(--color-info)' },
-                  { label: 'Alfa', value: skor.alfa, color: 'var(--color-danger)' },
-                ].map((row) => (
-                  <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--color-border-light)' }}>
-                    <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)' }}>{row.label}</span>
-                    <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 700, color: row.color }}>{row.value} hari</span>
-                  </div>
-                ))}
+
+                {/* Detail Breakdown */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {[
+                    { label: 'Hadir Tepat Waktu', value: skor.hadirTepatWaktu, color: 'var(--color-success)', bg: 'rgba(22, 163, 74, 0.1)' },
+                    { label: 'Terlambat', value: skor.terlambat, color: 'var(--color-warning)', bg: 'rgba(234, 179, 8, 0.1)' },
+                    { label: 'Izin', value: skor.izin, color: 'var(--color-info)', bg: 'rgba(59, 130, 246, 0.1)' },
+                    { label: 'Sakit', value: skor.sakit, color: 'var(--color-info)', bg: 'rgba(59, 130, 246, 0.1)' },
+                    { label: 'Alfa / Tanpa Keterangan', value: skor.alfa, color: 'var(--color-danger)', bg: 'rgba(239, 68, 68, 0.1)' },
+                  ].map((row) => (
+                    <div
+                      key={row.label}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        background: row.value > 0 ? row.bg : 'var(--color-surface)',
+                        border: '1px solid var(--color-border-light)',
+                      }}
+                    >
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                        {row.label}
+                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: row.value > 0 ? row.color : 'var(--color-text-tertiary)' }}>
+                        {row.value} hari
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Right Column — History */}
-          <div className="card">
-            <div className="card-header">
-              <span style={{ fontWeight: 700, fontSize: 'var(--font-size-sm)' }}>Riwayat Absensi</span>
-              <span className="badge badge-neutral">{absensiGuru.length} catatan</span>
+          {/* Right Column — Riwayat Absensi */}
+          <div className="card" style={{ padding: 0, overflow: 'hidden', border: '1px solid var(--color-border)' }}>
+            <div className="card-header" style={{ padding: '14px 16px', borderBottom: '1px solid var(--color-border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <h3 style={{ fontWeight: 800, fontSize: 'var(--font-size-sm)', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Clock size={16} color="var(--color-primary)" /> Riwayat Kehadiran &amp; Absensi
+                </h3>
+                <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', margin: '2px 0 0' }}>
+                  Catatan presensi harian guru
+                </p>
+              </div>
+              <span className="badge badge-neutral" style={{ fontWeight: 700, fontSize: 11 }}>
+                {absensiGuru.length} Catatan
+              </span>
             </div>
-            <div className="table-container" style={{ border: 'none', borderRadius: 0 }}>
+
+            {/* Mobile View: Cards List */}
+            <div className="show-on-mobile" style={{ padding: 12 }}>
+              {absensiGuru.length === 0 ? (
+                <div className="empty-state" style={{ padding: '32px 16px' }}>
+                  <Clock size={28} color="var(--color-text-tertiary)" style={{ margin: '0 auto 8px' }} />
+                  <div className="empty-state-title" style={{ fontSize: 14 }}>Belum Ada Catatan Absensi</div>
+                  <div className="empty-state-desc" style={{ fontSize: 12 }}>Belum ada data presensi yang terekam untuk guru ini.</div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {absensiGuru.map((a) => (
+                    <div
+                      key={a.id}
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: 10,
+                        background: 'var(--color-surface)',
+                        border: '1px solid var(--color-border-light)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 8,
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--color-text-primary)' }}>
+                            {new Date(a.tanggal).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}
+                          </div>
+                          <div style={{ fontSize: 11.5, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                            Masuk: <strong>{a.jamMasuk ? `${a.jamMasuk} WITA` : '—'}</strong> • Pulang: <strong>{a.jamPulang ? `${a.jamPulang} WITA` : '—'}</strong>
+                          </div>
+                        </div>
+                        <span className={`badge badge-${statusColors[a.status]}`} style={{ fontSize: 10.5, fontWeight: 700, flexShrink: 0 }}>
+                          {getStatusLabel(a.status)}
+                        </span>
+                      </div>
+
+                      {(a.keterlambatan > 0 || a.keterangan) && (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '6px 10px',
+                          background: 'var(--color-surface-2)',
+                          borderRadius: 6,
+                          fontSize: 11,
+                        }}>
+                          {a.keterlambatan > 0 && (
+                            <span style={{ color: 'var(--color-warning)', fontWeight: 700 }}>
+                              Terlambat {a.keterlambatan} menit
+                            </span>
+                          )}
+                          {a.keterlambatan > 0 && a.keterangan && <span>•</span>}
+                          {a.keterangan && (
+                            <span style={{ color: 'var(--color-text-secondary)' }}>
+                              {a.keterangan}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Desktop View: Full Table */}
+            <div className="table-container hide-on-mobile" style={{ border: 'none', borderRadius: 0, margin: 0 }}>
               <table className="table">
                 <thead>
                   <tr>
@@ -478,7 +777,7 @@ export default function AdminGuruDetailPage() {
                   ))}
                   {absensiGuru.length === 0 && (
                     <tr>
-                      <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: 'var(--color-text-tertiary)' }}>
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '36px', color: 'var(--color-text-tertiary)' }}>
                         Belum ada riwayat absensi untuk guru ini.
                       </td>
                     </tr>

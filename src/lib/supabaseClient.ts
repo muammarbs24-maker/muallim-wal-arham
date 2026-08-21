@@ -166,15 +166,15 @@ export async function getJadwalMatrixSupabase(): Promise<JadwalSesiEntry[]> {
   try {
     const { data, error } = await supabase
       .from('jadwal_matrix')
-      .select('*')
-      .not('id', 'like', '__%');
+      .select('*');
 
     if (error || !data) return [];
-    return data.map((d: any) => ({
+    const regularRows = data.filter((d: any) => typeof d.id === 'string' && !d.id.startsWith('__'));
+    return regularRows.map((d: any) => ({
       id: d.id,
       hari: d.hari,
       sesiId: d.sesi_id,
-      guruIds: d.guru_ids || [],
+      guruIds: Array.isArray(d.guru_ids) ? d.guru_ids : [],
     }));
   } catch (err) {
     console.error('Error getJadwalMatrixSupabase:', err);
@@ -184,22 +184,39 @@ export async function getJadwalMatrixSupabase(): Promise<JadwalSesiEntry[]> {
 
 export async function saveJadwalMatrixSupabase(entries: JadwalSesiEntry[]): Promise<boolean> {
   try {
-    // Delete only regular matrix rows, NEVER delete system rows prefixed with __
-    await supabase
+    // 1. Ambil seluruh ID baris non-system yang ada di database saat ini
+    const { data: existing } = await supabase
       .from('jadwal_matrix')
-      .delete()
-      .not('id', 'like', '__%');
+      .select('id');
+
+    if (existing && existing.length > 0) {
+      const idsToDelete = existing
+        .map((e: any) => e.id)
+        .filter((id: string) => typeof id === 'string' && !id.startsWith('__'));
+
+      if (idsToDelete.length > 0) {
+        await supabase.from('jadwal_matrix').delete().in('id', idsToDelete);
+      }
+    }
+
     if (entries.length === 0) return true;
 
+    // 2. Format baris yang akan disimpan
     const rows = entries.map((e) => ({
-      id: e.id,
+      id: e.id || `mat-${e.hari}-${e.sesiId}`,
       hari: e.hari,
       sesi_id: e.sesiId,
-      guru_ids: e.guruIds || [],
+      guru_ids: Array.isArray(e.guruIds) ? e.guruIds : [],
+      updated_at: new Date().toISOString(),
     }));
-    const { error } = await supabase.from('jadwal_matrix').insert(rows);
+
+    // 3. Upsert data ke tabel jadwal_matrix
+    const { error } = await supabase
+      .from('jadwal_matrix')
+      .upsert(rows, { onConflict: 'id' });
+
     if (error) {
-      console.error('Error saveJadwalMatrixSupabase:', error);
+      console.error('Error saveJadwalMatrixSupabase upsert:', error);
       return false;
     }
     return true;
