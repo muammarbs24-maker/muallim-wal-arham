@@ -46,17 +46,73 @@ export default function AdminKegiatanPage() {
           <h1 style={{ fontSize: 'var(--font-size-lg)', fontWeight: 800 }}>Manajemen Kegiatan</h1>
           <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>{kegiatanList.length} kegiatan total</p>
         </div>
-        <button className="btn btn-primary btn-sm">
+        <button className="btn btn-primary btn-sm hide-on-mobile">
           <Plus size={16} /> Tambah Kegiatan
         </button>
       </div>
 
       <div className="admin-content">
-        <div className="tabs" style={{ marginBottom: 'var(--space-5)' }}>
-          <button className={`tab ${activeTab === 'list' ? 'active' : ''}`} onClick={() => setActiveTab('list')}>
+        {/* Mobile Action Button */}
+        <div style={{ display: 'flex', marginBottom: 10 }} className="show-on-mobile-flex">
+          <button className="btn btn-primary btn-sm" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontWeight: 700 }}>
+            <Plus size={15} /> Tambah Kegiatan
+          </button>
+        </div>
+
+        {/* Report / Activity Tabs — Horizontal Swipe Only */}
+        <div style={{
+          display: 'flex',
+          flexWrap: 'nowrap',
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          touchAction: 'pan-x',
+          WebkitOverflowScrolling: 'touch',
+          scrollbarWidth: 'none',
+          gap: 8,
+          marginBottom: 'var(--space-4)',
+        }}>
+          <button
+            type="button"
+            className={`tab-pill ${activeTab === 'list' ? 'active' : ''}`}
+            onClick={() => setActiveTab('list')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: '7px 16px',
+              borderRadius: 9999,
+              fontSize: 12,
+              fontWeight: 700,
+              border: activeTab === 'list' ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
+              background: activeTab === 'list' ? 'var(--color-primary)' : 'var(--color-surface)',
+              color: activeTab === 'list' ? '#ffffff' : 'var(--color-text-secondary)',
+              cursor: 'pointer',
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease',
+            }}
+          >
             Daftar Kegiatan
           </button>
-          <button className={`tab ${activeTab === 'verifikasi' ? 'active' : ''}`} onClick={() => setActiveTab('verifikasi')}>
+          <button
+            type="button"
+            className={`tab-pill ${activeTab === 'verifikasi' ? 'active' : ''}`}
+            onClick={() => setActiveTab('verifikasi')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: '7px 16px',
+              borderRadius: 9999,
+              fontSize: 12,
+              fontWeight: 700,
+              border: activeTab === 'verifikasi' ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
+              background: activeTab === 'verifikasi' ? 'var(--color-primary)' : 'var(--color-surface)',
+              color: activeTab === 'verifikasi' ? '#ffffff' : 'var(--color-text-secondary)',
+              cursor: 'pointer',
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease',
+            }}
+          >
             Verifikasi Kehadiran
           </button>
         </div>
@@ -146,9 +202,9 @@ function VerifikasiPanel({
   const selesaiOrBerlangsung = kegiatanList.filter((k) => k.status !== 'mendatang');
 
   return (
-    <div style={{ display: 'flex', gap: 'var(--space-5)' }}>
+    <div className="admin-verifikasi-layout">
       {/* Kegiatan selector */}
-      <div style={{ width: 280, flexShrink: 0 }}>
+      <div style={{ width: '100%' }}>
         <div className="card">
           <div className="card-header">
             <span style={{ fontWeight: 700, fontSize: 'var(--font-size-sm)' }}>Pilih Kegiatan</span>

@@ -1361,6 +1361,12 @@ ol {
   gap: var(--space-3);
 }
 
+.admin-verifikasi-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: var(--space-5);
+}
+
 @media (max-width: 1024px) {
   .admin-grid-4 {
     grid-template-columns: repeat(2, 1fr);
@@ -1369,7 +1375,7 @@ ol {
   .admin-grid-3, .admin-grid-3-col {
     grid-template-columns: repeat(2, 1fr);
   }
-  .admin-grid-2-1, .admin-grid-atur-guru {
+  .admin-grid-2-1, .admin-grid-atur-guru, .admin-verifikasi-layout {
     grid-template-columns: 1fr;
   }
   .admin-sesi-form-grid {
