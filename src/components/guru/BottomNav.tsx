@@ -1,0 +1,135 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { Home, Calendar, Activity, BarChart2, User, BookOpen, Bell, LogOut } from 'lucide-react';
+import { useState } from 'react';
+import { currentGuru } from '@/lib/mockData';
+import { getInitials } from '@/lib/utils';
+
+const navItems = [
+  { href: '/guru/beranda', label: 'Beranda', icon: Home },
+  { href: '/guru/jadwal', label: 'Jadwal', icon: Calendar },
+  { href: '/guru/kegiatan', label: 'Kegiatan', icon: Activity },
+  { href: '/guru/performa', label: 'Performa', icon: BarChart2 },
+  { href: '/guru/profil', label: 'Profil', icon: User },
+];
+
+export default function GuruNav() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [showLogout, setShowLogout] = useState(false);
+
+  const handleConfirmLogout = () => {
+    if (typeof document !== 'undefined') {
+      document.cookie = 'guru_session=; path=/; max-age=0; SameSite=Lax';
+      document.cookie = 'logged_guru_id=; path=/; max-age=0; SameSite=Lax';
+    }
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('logged_in_guru_id');
+      localStorage.removeItem('logged_in_guru_email');
+      window.location.href = '/';
+    } else {
+      router.push('/');
+    }
+  };
+
+  return (
+    <>
+      {/* ============================================================
+          DESKTOP SIDEBAR
+          ============================================================ */}
+      <aside className="guru-sidebar">
+        {/* Logo */}
+        <div className="sidebar-logo">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+            <div className="sidebar-logo-mark">
+              <BookOpen size={18} />
+            </div>
+            <div>
+              <div className="sidebar-logo-text">Mu&apos;Allim</div>
+              <div className="sidebar-logo-sub">Sistem Absensi</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Nav Items */}
+        <nav className="sidebar-nav">
+          <div className="sidebar-nav-label">Menu</div>
+          {navItems.map(({ href, label, icon: Icon }) => {
+            const isActive = pathname.startsWith(href);
+            return (
+              <Link key={href} href={href} className={`sidebar-nav-item ${isActive ? 'active' : ''}`}>
+                <Icon size={18} />
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Sidebar Footer */}
+        <div style={{
+          padding: 'var(--space-4)',
+          borderTop: '1px solid var(--color-border-light)',
+          marginTop: 'auto',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
+            <div className="avatar avatar-sm">{getInitials(currentGuru.nama)}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {currentGuru.nama.split(',')[0]}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)' }}>{currentGuru.jabatan}</div>
+            </div>
+          </div>
+          <button
+            className="sidebar-nav-item"
+            style={{ color: 'var(--color-danger)', width: '100%' }}
+            onClick={() => setShowLogout(true)}
+          >
+            <LogOut size={16} />
+            Keluar
+          </button>
+          <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', textAlign: 'center', marginTop: 'var(--space-3)', fontWeight: 500 }}>
+            © 2026 MR Team
+          </div>
+        </div>
+      </aside>
+
+      {/* ============================================================
+          MOBILE BOTTOM NAV
+          ============================================================ */}
+      <nav className="bottom-nav">
+        {navItems.map(({ href, label, icon: Icon }) => {
+          const isActive = pathname.startsWith(href);
+          return (
+            <Link key={href} href={href} className={`bottom-nav-item ${isActive ? 'active' : ''}`}>
+              <Icon strokeWidth={isActive ? 2.5 : 1.8} />
+              <span>{label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Logout Modal */}
+      {showLogout && (
+        <div className="modal-overlay" onClick={() => setShowLogout(false)}>
+          <div className="modal" style={{ maxWidth: 320 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: 'var(--font-size-base)', fontWeight: 700 }}>Keluar dari Aplikasi?</h3>
+            </div>
+            <div className="modal-body">
+              <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
+                Anda akan keluar dari akun ini. Pastikan sudah melakukan absen.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowLogout(false)}>Batal</button>
+              <button className="btn btn-danger btn-sm" onClick={handleConfirmLogout}>Keluar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
