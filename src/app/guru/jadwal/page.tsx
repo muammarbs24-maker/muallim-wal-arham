@@ -199,49 +199,73 @@ export default function JadwalPage() {
     }
 
     setIsSubmittingSwap(true);
-    const newReq = createTukarJadwalRequest({
-      requesterGuruId: activeGuru.id,
-      requesterGuruNama: activeGuru.nama,
-      requesterHari: selectedMySlot.hari,
-      requesterSesiId: selectedMySlot.sesiId,
-      requesterSesiNama: selectedMySlot.sesiNama,
-
-      targetGuruId: selectedTargetSlot.guruId,
-      targetGuruNama: selectedTargetSlot.guruNama,
-      targetHari: selectedTargetSlot.hari,
-      targetSesiId: selectedTargetSlot.sesiId,
-      targetSesiNama: selectedTargetSlot.sesiNama,
-
-      catatan: swapCatatan.trim(),
-    });
-
     try {
-      const { saveTukarJadwalRequestsSupabase } = await import('@/lib/supabaseClient');
-      await saveTukarJadwalRequestsSupabase(mockTukarJadwalRequests);
-    } catch (err) {}
+      const { getTukarJadwalRequestsSupabase, saveTukarJadwalRequestsSupabase } = await import('@/lib/supabaseClient');
+      const existing = await getTukarJadwalRequestsSupabase();
 
-    setIsSubmittingSwap(false);
-    setShowSwapModal(false);
-    setSwapCatatan('');
-    setSelectedTargetSlot(null);
-    setSwapRequests([...mockTukarJadwalRequests]);
-    refreshData();
-    setToastMessage(`✓ Permintaan tukar jadwal berhasil dikirim ke ${newReq.targetGuruNama}! Menunggu persetujuan.`);
-    setTimeout(() => setToastMessage(null), 4000);
+      const newReq: TukarJadwalRequest = {
+        id: `swap-${Date.now()}`,
+        requesterGuruId: activeGuru.id,
+        requesterGuruNama: activeGuru.nama,
+        requesterHari: selectedMySlot.hari,
+        requesterSesiId: selectedMySlot.sesiId,
+        requesterSesiNama: selectedMySlot.sesiNama,
+
+        targetGuruId: selectedTargetSlot.guruId,
+        targetGuruNama: selectedTargetSlot.guruNama,
+        targetHari: selectedTargetSlot.hari,
+        targetSesiId: selectedTargetSlot.sesiId,
+        targetSesiNama: selectedTargetSlot.sesiNama,
+
+        catatan: swapCatatan.trim(),
+        status: 'pending',
+        dibuatPada: new Date().toISOString(),
+      };
+
+      const updatedList = [newReq, ...existing.filter((r) => r.id !== newReq.id)];
+      mockTukarJadwalRequests.length = 0;
+      mockTukarJadwalRequests.push(...updatedList);
+      await saveTukarJadwalRequestsSupabase(updatedList);
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('muallim_tukar_jadwal_requests', JSON.stringify(updatedList));
+        } catch (err) {}
+      }
+
+      setIsSubmittingSwap(false);
+      setShowSwapModal(false);
+      setSwapCatatan('');
+      setSelectedTargetSlot(null);
+      setSwapRequests([...updatedList]);
+      setToastMessage(`✓ Permintaan tukar jadwal berhasil dikirim ke ${newReq.targetGuruNama}! Menunggu persetujuan.`);
+      setTimeout(() => setToastMessage(null), 4000);
+    } catch (err) {
+      console.error('Error in handleSendSwapRequest:', err);
+      setIsSubmittingSwap(false);
+    }
   };
 
   const handleInitiateRespondSwap = async (req: TukarJadwalRequest, accept: boolean) => {
     if (accept) {
-      const success = respondTukarJadwalRequest(req.id, true);
-      if (success) {
-        try {
-          const { saveTukarJadwalRequestsSupabase, saveJadwalMatrixSupabase } = await import('@/lib/supabaseClient');
-          await saveJadwalMatrixSupabase(mockJadwalMatrix);
-          await saveTukarJadwalRequestsSupabase(mockTukarJadwalRequests);
-        } catch (err) {}
+      try {
+        const { getTukarJadwalRequestsSupabase, saveTukarJadwalRequestsSupabase, saveJadwalMatrixSupabase } = await import('@/lib/supabaseClient');
+        const latestReqs = await getTukarJadwalRequestsSupabase();
+        const target = latestReqs.find((r) => r.id === req.id) || req;
+        target.status = 'disetujui';
+        target.diresponPada = new Date().toISOString();
+
+        respondTukarJadwalRequest(req.id, true);
+        await saveJadwalMatrixSupabase(mockJadwalMatrix);
+        const finalReqs = latestReqs.length > 0 ? latestReqs : mockTukarJadwalRequests;
+        await saveTukarJadwalRequestsSupabase(finalReqs);
+
+        setSwapRequests([...finalReqs]);
         refreshData();
         setToastMessage('✓ Penukaran jadwal disetujui! Matriks jadwal telah diperbarui otomatis.');
         setTimeout(() => setToastMessage(null), 4000);
+      } catch (err) {
+        console.error('Error in handleInitiateRespondSwap accept:', err);
       }
     } else {
       // Buka modal alasan penolakan
@@ -263,18 +287,29 @@ export default function JadwalPage() {
     }
 
     setIsProcessingReject(true);
-    const success = respondTukarJadwalRequest(rejectModalData.id, false, rejectionReason.trim());
-    if (success) {
-      try {
-        const { saveTukarJadwalRequestsSupabase } = await import('@/lib/supabaseClient');
-        await saveTukarJadwalRequestsSupabase(mockTukarJadwalRequests);
-      } catch (err) {}
+    try {
+      const { getTukarJadwalRequestsSupabase, saveTukarJadwalRequestsSupabase } = await import('@/lib/supabaseClient');
+      const latestReqs = await getTukarJadwalRequestsSupabase();
+      const target = latestReqs.find((r) => r.id === rejectModalData.id);
+      if (target) {
+        target.status = 'ditolak';
+        target.alasanPenolakan = rejectionReason.trim();
+        target.diresponPada = new Date().toISOString();
+      }
+      respondTukarJadwalRequest(rejectModalData.id, false, rejectionReason.trim());
+      const finalReqs = latestReqs.length > 0 ? latestReqs : mockTukarJadwalRequests;
+      await saveTukarJadwalRequestsSupabase(finalReqs);
+
+      setSwapRequests([...finalReqs]);
       refreshData();
       setIsProcessingReject(false);
       setRejectModalData(null);
       setRejectionReason('');
       setToastMessage('✓ Permintaan tukar jadwal telah ditolak dengan alasan yang tercatat.');
       setTimeout(() => setToastMessage(null), 4000);
+    } catch (err) {
+      console.error('Error in handleConfirmReject:', err);
+      setIsProcessingReject(false);
     }
   };
 

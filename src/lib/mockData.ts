@@ -245,7 +245,7 @@ export function loadPersistedData(): void {
     if (savedTukarJadwal) {
       try {
         const parsed = JSON.parse(savedTukarJadwal);
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0 && mockTukarJadwalRequests.length === 0) {
           mockTukarJadwalRequests.length = 0;
           mockTukarJadwalRequests.push(...parsed);
         }
