@@ -411,31 +411,20 @@ export default function EditSesiPage() {
             );
           })}
 
-          {/* Footer Submit */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'var(--space-3)', marginBottom: 'var(--space-8)' }}>
+          {/* Footer Actions (Tambah & Batalkan Saja) */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginTop: 'var(--space-3)', marginBottom: 'var(--space-8)' }}>
             <button
               type="button"
               className="btn btn-secondary"
               onClick={() => setShowAddModal(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}
             >
-              <Plus size={16} /> Tambah Jam Mengajar Baru
+              <Plus size={16} /> Tambah Jam Mengajar
             </button>
 
-            <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
-              <Link href="/admin/jadwal" className="btn btn-ghost">
-                Batal
-              </Link>
-              <button
-                type="submit"
-                className="btn btn-primary btn-lg"
-                disabled={isSaving}
-                style={{ minWidth: 200, fontWeight: 700 }}
-              >
-                <Save size={18} />
-                {isSaving ? 'Menyimpan...' : 'Simpan Semua Sesi'}
-              </button>
-            </div>
+            <Link href="/admin/jadwal" className="btn btn-ghost" style={{ fontSize: 13 }}>
+              Batalkan
+            </Link>
           </div>
         </form>
 
