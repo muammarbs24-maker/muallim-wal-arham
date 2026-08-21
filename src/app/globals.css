@@ -1303,6 +1303,65 @@ ol {
   background: var(--color-border-light);
 }
 
+/* ============================================================
+   ADMIN GRID SYSTEM (DESKTOP DEFAULT)
+   ============================================================ */
+
+.admin-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.admin-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.admin-grid-3-col {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr;
+  gap: var(--space-5);
+  margin-bottom: var(--space-5);
+}
+
+.admin-grid-2-1 {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr;
+  gap: var(--space-5);
+  margin-bottom: var(--space-5);
+}
+
+.admin-grid-1-1 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-5);
+  margin-bottom: var(--space-5);
+}
+
+.admin-grid-atur-guru {
+  display: grid;
+  grid-template-columns: 1fr 240px;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+@media (max-width: 1024px) {
+  .admin-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+  }
+  .admin-grid-3, .admin-grid-3-col {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .admin-grid-2-1, .admin-grid-atur-guru {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 768px) {
   .admin-layout {
     flex-direction: column;
