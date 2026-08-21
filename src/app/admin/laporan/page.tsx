@@ -192,21 +192,53 @@ export default function AdminLaporanPage() {
       </div>
 
       <div className="admin-content">
-        {/* Report Type Tabs */}
-        <div className="tabs" style={{ marginBottom: 'var(--space-5)' }}>
+        {/* Report Type Tabs — Horizontal Swipe Only */}
+        <div style={{
+          display: 'flex',
+          flexWrap: 'nowrap',
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          touchAction: 'pan-x',
+          WebkitOverflowScrolling: 'touch',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          gap: 8,
+          marginBottom: 'var(--space-5)',
+          paddingBottom: 4,
+        }}>
           {[
             { key: 'harian', label: 'Laporan Harian', icon: <Calendar size={14} /> },
             { key: 'bulanan', label: 'Laporan Bulanan', icon: <BarChart2 size={14} /> },
             { key: 'rekap', label: 'Rekap Per Guru', icon: <FileText size={14} /> },
-          ].map(({ key, label, icon }) => (
-            <button
-              key={key}
-              className={`tab ${activeReport === key ? 'active' : ''}`}
-              onClick={() => setActiveReport(key as typeof activeReport)}
-            >
-              {icon} {label}
-            </button>
-          ))}
+          ].map(({ key, label, icon }) => {
+            const active = activeReport === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                className={`tab-pill ${active ? 'active' : ''}`}
+                onClick={() => setActiveReport(key as typeof activeReport)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 16px',
+                  borderRadius: 9999,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  border: active ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
+                  background: active ? 'var(--color-primary)' : 'var(--color-surface)',
+                  color: active ? '#ffffff' : 'var(--color-text-secondary)',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {icon} {label}
+              </button>
+            );
+          })}
         </div>
 
         {/* ============================================================
