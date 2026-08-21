@@ -107,12 +107,44 @@ export default function BerandaPage() {
       }).catch(() => {});
 
       getAbsensiSupabase().then((abs) => {
-        if (abs !== null && abs !== undefined) {
+        if (Array.isArray(abs)) {
           mockAbsensi.length = 0;
           mockAbsensi.push(...abs);
           localStorage.setItem('muallim_absensi_list', JSON.stringify(abs));
-          const hasTodayAbs = abs.some((a) => a.guruId === activeGuru.id && a.tanggal === todayStr);
-          if (!hasTodayAbs) {
+
+          const teacherTodayAbs = abs.filter((a) => (a.guruId === activeGuru.id || a.guruNama === activeGuru.nama) && a.tanggal === todayStr);
+          const fullList = getJadwalForGuru(activeGuru.id);
+          const newSessionsMap: Record<string, SesiAttendanceData> = {};
+
+          teacherTodayAbs.forEach((a) => {
+            const matchedJadwal = fullList.find((j) => 
+              j.hari === hariIni && (
+                a.id.includes(j.id) || 
+                (a.keterangan && a.keterangan.includes(j.mataPelajaran)) ||
+                j.mataPelajaran.toLowerCase() === (a.keterangan || '').toLowerCase()
+              )
+            ) || fullList.find((j) => j.hari === hariIni);
+
+            if (matchedJadwal) {
+              newSessionsMap[matchedJadwal.id] = {
+                jadwalId: matchedJadwal.id,
+                mataPelajaran: matchedJadwal.mataPelajaran,
+                jamMulai: matchedJadwal.jamMulai,
+                jamSelesai: matchedJadwal.jamSelesai,
+                kelas: matchedJadwal.kelas,
+                jamMasuk: a.jamMasuk,
+                jamPulang: a.jamPulang,
+                status: a.status,
+                isDone: Boolean(a.jamPulang || a.status === 'izin' || a.status === 'sakit'),
+              };
+            }
+          });
+
+          if (teacherTodayAbs.length > 0) {
+            const storageKey = `muallim_session_absensi_${todayStr}_${activeGuru.id}`;
+            localStorage.setItem(storageKey, JSON.stringify(newSessionsMap));
+            setSessionsMap(newSessionsMap);
+          } else {
             const storageKey = `muallim_session_absensi_${todayStr}_${activeGuru.id}`;
             localStorage.removeItem(storageKey);
             setSessionsMap({});
@@ -131,24 +163,19 @@ export default function BerandaPage() {
       }).catch(() => {});
     }).catch(() => {});
 
-    // Load status sesi hari ini and reconcile with mockAbsensi
+    // Load status sesi hari ini dari localStorage jika ada
     if (typeof window !== 'undefined') {
       try {
         const storageKey = `muallim_session_absensi_${todayStr}_${activeGuru.id}`;
         const saved = localStorage.getItem(storageKey);
-        const hasTodayAbs = mockAbsensi.some((a) => a.guruId === activeGuru.id && a.tanggal === todayStr);
-
-        if (!hasTodayAbs) {
-          localStorage.removeItem(storageKey);
-          setSessionsMap({});
-        } else if (saved) {
+        if (saved) {
           setSessionsMap(JSON.parse(saved));
         }
       } catch (e) {
         console.error('Error loading session absensi:', e);
       }
     }
-  }, [todayStr]);
+  }, [todayStr, hariIni]);
 
   // Jadwal Guru Hari Ini (diurutkan berdasarkan jamMulai)
   const todayJadwal = useMemo(() => {
@@ -160,16 +187,8 @@ export default function BerandaPage() {
   // Live Clock
   useEffect(() => {
     const tick = () => {
-      const now = getNowWITA();
-      setCurrentTime(
-        now.toLocaleTimeString('id-ID', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false,
-          timeZone: 'Asia/Makassar',
-        })
-      );
+      const now = new Date();
+      setCurrentTime(formatTimeWITA(now));
       setCurrentDate(formatDateWITA(now));
     };
     tick();
@@ -378,7 +397,7 @@ export default function BerandaPage() {
     const status: AttendanceStatus = masukMins <= (jadwalMins + toleransi) ? 'hadir_tepat_waktu' : 'terlambat';
     const keterlambatan = Math.max(0, masukMins - jadwalMins);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       const updatedSesi: SesiAttendanceData = {
         jadwalId: jadwal.id,
         mataPelajaran: jadwal.mataPelajaran,
@@ -416,6 +435,12 @@ export default function BerandaPage() {
         updatedAbsensiList.unshift(newRecord);
       }
       savePersistedAbsensi(updatedAbsensiList);
+
+      // Simpan langsung ke Supabase Cloud
+      try {
+        const { upsertAbsensiSupabase } = await import('@/lib/supabaseClient');
+        await upsertAbsensiSupabase(newRecord);
+      } catch (e) {}
 
       setIsProcessing(false);
       setShowSuccess(
@@ -459,14 +484,9 @@ export default function BerandaPage() {
     setLocationState('valid');
 
     const now = getNowWITA();
-    const jamPulang = now.toLocaleTimeString('id-ID', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      timeZone: 'Asia/Makassar',
-    }).replace(/\./g, ':');
+    const jamPulang = formatTimeWITA(now);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       const current = sessionsMap[jadwal.id];
       const updatedSesi: SesiAttendanceData = {
         jadwalId: jadwal.id,
@@ -486,10 +506,13 @@ export default function BerandaPage() {
       const recordId = `abs-${todayStr}-${jadwal.id}-${guruData.id}`;
       const existing = mockAbsensi.find((a) => a.id === recordId);
       let updatedList = [...mockAbsensi];
+      let recordToSave: AbsensiRecord;
+
       if (existing) {
         existing.jamPulang = jamPulang;
+        recordToSave = { ...existing };
       } else {
-        updatedList.unshift({
+        recordToSave = {
           id: recordId,
           guruId: guruData.id,
           guruNama: guruData.nama,
@@ -501,9 +524,16 @@ export default function BerandaPage() {
           lokasiValid: true,
           keterangan: `Sesi: ${jadwal.mataPelajaran} (${jadwal.jamMulai}–${jadwal.jamSelesai} WITA)`,
           dibuatPada: now.toISOString(),
-        });
+        };
+        updatedList.unshift(recordToSave);
       }
       savePersistedAbsensi(updatedList);
+
+      // Simpan langsung ke Supabase Cloud
+      try {
+        const { upsertAbsensiSupabase } = await import('@/lib/supabaseClient');
+        await upsertAbsensiSupabase(recordToSave);
+      } catch (e) {}
 
       setIsProcessing(false);
       setShowSuccess(`✓ Berhasil Absen Pulang sesi ${jadwal.mataPelajaran} pukul ${jamPulang} WITA. Jazakallahu Khairan!`);

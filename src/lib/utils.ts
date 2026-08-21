@@ -11,20 +11,17 @@ import { AttendanceStatus, DayOfWeek } from '@/types';
 const WITA_OFFSET = 8 * 60; // UTC+8 in minutes
 
 export function getNowWITA(): Date {
-  const now = new Date();
-  // Convert to WITA
-  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
-  return new Date(utcMs + WITA_OFFSET * 60000);
+  return new Date();
 }
 
 export function formatTimeWITA(date?: Date): string {
-  const d = date || getNowWITA();
+  const d = date || new Date();
   return d.toLocaleTimeString('id-ID', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
     timeZone: 'Asia/Makassar',
-  });
+  }).replace(/\./g, ':');
 }
 
 export function formatDateWITA(date?: Date | string): string {
@@ -32,7 +29,7 @@ export function formatDateWITA(date?: Date | string): string {
     ? typeof date === 'string'
       ? new Date(date)
       : date
-    : getNowWITA();
+    : new Date();
   return d.toLocaleDateString('id-ID', {
     weekday: 'long',
     year: 'numeric',
@@ -47,7 +44,7 @@ export function formatDateShortWITA(date?: Date | string): string {
     ? typeof date === 'string'
       ? new Date(date)
       : date
-    : getNowWITA();
+    : new Date();
   return d.toLocaleDateString('id-ID', {
     day: 'numeric',
     month: 'short',
@@ -66,20 +63,37 @@ export function formatDateTimeWITA(isoString: string): string {
     minute: '2-digit',
     hour12: false,
     timeZone: 'Asia/Makassar',
-  }) + ' WITA';
+  }).replace(/\./g, ':') + ' WITA';
 }
 
 export function getTodayStringWITA(): string {
-  const now = getNowWITA();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Makassar',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(now); // Returns YYYY-MM-DD in Makassar time
 }
 
 export function getCurrentHourMinuteWITA(): { hour: number; minute: number } {
-  const now = getNowWITA();
-  return { hour: now.getHours(), minute: now.getMinutes() };
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Makassar',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false,
+  }).formatToParts(now);
+
+  let hour = 0;
+  let minute = 0;
+  for (const p of parts) {
+    if (p.type === 'hour') hour = parseInt(p.value, 10);
+    if (p.type === 'minute') minute = parseInt(p.value, 10);
+  }
+  if (hour === 24) hour = 0;
+  return { hour, minute };
 }
 
 export function getCurrentMinutesWITA(): number {
