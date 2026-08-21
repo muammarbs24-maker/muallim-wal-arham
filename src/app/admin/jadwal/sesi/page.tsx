@@ -214,21 +214,21 @@ export default function EditSesiPage() {
 
       {/* Topbar */}
       <div className="admin-topbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-          <Link href="/admin/jadwal" className="btn btn-ghost btn-sm" style={{ padding: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flex: 1, minWidth: 0 }}>
+          <Link href="/admin/jadwal" className="btn btn-ghost btn-sm" style={{ padding: 6, flexShrink: 0 }}>
             <ArrowLeft size={18} />
           </Link>
-          <div>
-            <h1 style={{ fontSize: 'var(--font-size-lg)', fontWeight: 800 }}>
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{ fontSize: 'var(--font-size-base)', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Sesi Mengajar
             </h1>
             <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>
-              Kelola rentang jam operasional sesi mengajar yayasan (Default 4 sesi &amp; dapat ditambah)
+              Pengaturan rentang waktu &amp; jam pembelajaran
             </p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+        <div className="hide-on-mobile" style={{ gap: 'var(--space-2)', flexShrink: 0 }}>
           <button
             type="button"
             className="btn btn-secondary btn-sm"
@@ -251,31 +251,55 @@ export default function EditSesiPage() {
 
       <div className="admin-content" style={{ maxWidth: 880, margin: '0 auto' }}>
         
+        {/* Mobile Action Buttons */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }} className="show-on-mobile-flex">
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => setShowAddModal(true)}
+            style={{ flex: 1, fontSize: 11, padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+          >
+            <Plus size={14} /> Tambah Sesi
+          </button>
+          <button
+            type="submit"
+            form="form-sesi"
+            className="btn btn-primary btn-sm"
+            disabled={isSaving}
+            style={{ flex: 1.5, fontSize: 11, padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontWeight: 700 }}
+          >
+            <Save size={14} />
+            {isSaving ? 'Menyimpan...' : 'Simpan Sesi'}
+          </button>
+        </div>
+
         {/* Info Box */}
         <div style={{
-          padding: 'var(--space-4)',
+          padding: '10px 14px',
           background: 'var(--color-primary-light)',
-          borderRadius: 'var(--radius-lg)',
-          marginBottom: 'var(--space-5)',
+          borderRadius: 'var(--radius-md)',
+          marginBottom: 'var(--space-4)',
           display: 'flex',
+          flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: 6,
           border: '1px solid rgba(27,107,74,0.2)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-            <Info size={20} color="var(--color-primary)" style={{ flexShrink: 0 }} />
-            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-              <strong>Petunjuk:</strong> Default terdapat <strong>4 Sesi Mengajar</strong>. Anda dapat mengedit jam mulai/selesai atau menekan tombol <strong>+ Tambah Jam Mengajar</strong> untuk membuat sesi tambahan.
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flex: 1, minWidth: 200 }}>
+            <Info size={16} color="var(--color-primary)" style={{ flexShrink: 0 }} />
+            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>
+              <strong>Petunjuk:</strong> Edit jam operasional di bawah lalu tekan <strong>Simpan</strong>.
             </div>
           </div>
-          <span className="badge badge-primary" style={{ flexShrink: 0, fontWeight: 700 }}>{sesiState.length} Sesi Terdaftar</span>
+          <span className="badge badge-primary" style={{ flexShrink: 0, fontWeight: 700, fontSize: 10 }}>{sesiState.length} Sesi Terdaftar</span>
         </div>
 
         {/* Sessions Form */}
-        <form id="form-sesi" onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+        <form id="form-sesi" onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
           {sesiState.map((sesi, index) => {
             const isDefault = DEFAULT_SESI_IDS.includes(sesi.id);
-            const icon = SESI_ICONS[sesi.id] || <Clock size={20} color="var(--color-primary)" />;
+            const icon = SESI_ICONS[sesi.id] || <Clock size={16} color="var(--color-primary)" />;
             const borderCol = sesi.id === 'pagi' ? '#10B981' : sesi.id === 'siang' ? '#F59E0B' : sesi.id === 'sore' ? '#0EA5E9' : sesi.id === 'tahfidz' ? '#8B5CF6' : 'var(--color-primary)';
 
             return (
@@ -283,25 +307,26 @@ export default function EditSesiPage() {
                 key={sesi.id}
                 className="card"
                 style={{
-                  borderLeft: `5px solid ${borderCol}`,
+                  borderLeft: `4px solid ${borderCol}`,
+                  padding: 0,
                 }}
               >
-                <div className="card-header" style={{ background: 'var(--color-surface-2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                <div className="card-header" style={{ background: 'var(--color-surface-2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6, padding: '10px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     {icon}
-                    <span style={{ fontWeight: 800, fontSize: 'var(--font-size-base)' }}>
+                    <span style={{ fontWeight: 800, fontSize: 13 }}>
                       Sesi {index + 1}: {sesi.nama}
                     </span>
                     {isDefault ? (
-                      <span className="badge badge-neutral" style={{ fontSize: 10 }}>Default Yayasan</span>
+                      <span className="badge badge-neutral" style={{ fontSize: 9 }}>Default</span>
                     ) : (
-                      <span className="badge badge-primary" style={{ fontSize: 10 }}>Sesi Tambahan</span>
+                      <span className="badge badge-primary" style={{ fontSize: 9 }}>Tambahan</span>
                     )}
                   </div>
                   
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span className="badge badge-primary">
-                      {sesi.jamMulai} – {sesi.jamSelesai} WITA
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span className="badge badge-primary" style={{ fontSize: 10, fontVariantNumeric: 'tabular-nums' }}>
+                      {sesi.jamMulai} – {sesi.jamSelesai}
                     </span>
                     {!isDefault && (
                       <button
@@ -311,18 +336,18 @@ export default function EditSesiPage() {
                         style={{ padding: 4, color: 'var(--color-danger)' }}
                         title="Hapus Sesi Ini"
                       >
-                        <Trash2 size={15} />
+                        <Trash2 size={14} />
                       </button>
                     )}
                   </div>
                 </div>
 
-                <div className="card-body">
-                  <div className="admin-grid-4">
+                <div className="card-body" style={{ padding: '12px 14px' }}>
+                  <div className="admin-sesi-form-grid">
                     
                     {/* Nama Sesi */}
-                    <div className="form-group">
-                      <label className="form-label" style={{ fontWeight: 700 }}>
+                    <div className="form-group full-on-mobile" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontWeight: 700, fontSize: 11 }}>
                         Nama Sesi
                       </label>
                       <input
@@ -331,12 +356,13 @@ export default function EditSesiPage() {
                         value={sesi.nama}
                         onChange={(e) => handleFieldChange(sesi.id, 'nama', e.target.value)}
                         required
+                        style={{ fontSize: 12 }}
                       />
                     </div>
 
                     {/* Jam Mulai */}
-                    <div className="form-group">
-                      <label className="form-label" style={{ fontWeight: 700 }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontWeight: 700, fontSize: 11 }}>
                         Jam Mulai *
                       </label>
                       <input
@@ -345,12 +371,13 @@ export default function EditSesiPage() {
                         value={sesi.jamMulai}
                         onChange={(e) => handleFieldChange(sesi.id, 'jamMulai', e.target.value)}
                         required
+                        style={{ fontSize: 12 }}
                       />
                     </div>
 
                     {/* Jam Selesai */}
-                    <div className="form-group">
-                      <label className="form-label" style={{ fontWeight: 700 }}>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontWeight: 700, fontSize: 11 }}>
                         Jam Selesai *
                       </label>
                       <input
@@ -359,12 +386,13 @@ export default function EditSesiPage() {
                         value={sesi.jamSelesai}
                         onChange={(e) => handleFieldChange(sesi.id, 'jamSelesai', e.target.value)}
                         required
+                        style={{ fontSize: 12 }}
                       />
                     </div>
 
                     {/* Deskripsi */}
-                    <div className="form-group">
-                      <label className="form-label" style={{ fontWeight: 700 }}>
+                    <div className="form-group full-on-mobile" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontWeight: 700, fontSize: 11 }}>
                         Keterangan / Mata Pelajaran
                       </label>
                       <input
@@ -373,6 +401,7 @@ export default function EditSesiPage() {
                         value={sesi.deskripsi}
                         onChange={(e) => handleFieldChange(sesi.id, 'deskripsi', e.target.value)}
                         placeholder="cth: Pembelajaran Tahfidz..."
+                        style={{ fontSize: 12 }}
                       />
                     </div>
 

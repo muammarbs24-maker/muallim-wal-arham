@@ -1355,6 +1355,12 @@ ol {
   align-items: flex-start;
 }
 
+.admin-sesi-form-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 1.5fr;
+  gap: var(--space-3);
+}
+
 @media (max-width: 1024px) {
   .admin-grid-4 {
     grid-template-columns: repeat(2, 1fr);
@@ -1365,6 +1371,12 @@ ol {
   }
   .admin-grid-2-1, .admin-grid-atur-guru {
     grid-template-columns: 1fr;
+  }
+  .admin-sesi-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .admin-sesi-form-grid .full-on-mobile {
+    grid-column: span 2;
   }
 }
 
