@@ -1373,9 +1373,16 @@ ol {
   display: flex;
 }
 
+.show-on-mobile-flex {
+  display: none !important;
+}
+
 @media (max-width: 768px) {
   .hide-on-mobile {
     display: none !important;
+  }
+  .show-on-mobile-flex {
+    display: flex !important;
   }
   .admin-layout {
     flex-direction: column;

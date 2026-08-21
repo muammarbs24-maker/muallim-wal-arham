@@ -273,21 +273,21 @@ export default function AturJadwalGuruPage() {
 
       {/* Topbar */}
       <div className="admin-topbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-          <Link href="/admin/jadwal" className="btn btn-ghost btn-sm" style={{ padding: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flex: 1, minWidth: 0 }}>
+          <Link href="/admin/jadwal" className="btn btn-ghost btn-sm" style={{ padding: 6, flexShrink: 0 }}>
             <ArrowLeft size={18} />
           </Link>
-          <div>
-            <h1 style={{ fontSize: 'var(--font-size-lg)', fontWeight: 800 }}>
-              Atur Jadwal Guru (Drag &amp; Drop Grid)
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{ fontSize: 'var(--font-size-base)', fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Atur Jadwal Guru
             </h1>
             <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>
-              Tarik guru ke kotak hari &amp; sesi yang diinginkan (Tampilan pas layar penuh)
+              Penugasan sesi &amp; hari mengajar guru
             </p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+        <div className="hide-on-mobile" style={{ gap: 'var(--space-2)', flexShrink: 0 }}>
           <button
             type="button"
             className="btn btn-secondary btn-sm"
@@ -306,7 +306,7 @@ export default function AturJadwalGuruPage() {
             className="btn btn-primary btn-sm"
             onClick={handleSave}
             disabled={isSaving}
-            style={{ fontSize: 12, padding: '6px 14px' }}
+            style={{ fontSize: 12, padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 6 }}
           >
             <Save size={14} />
             {isSaving ? 'Menyimpan...' : 'Simpan Jadwal Guru'}
@@ -358,26 +358,55 @@ export default function AturJadwalGuruPage() {
 
       <div className="admin-content">
         
+        {/* Mobile-Only Action Buttons Row */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }} className="show-on-mobile-flex">
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => setShowResetModal(true)}
+            disabled={isSaving}
+            style={{
+              flex: 1, fontSize: 11, padding: '8px 10px',
+              color: 'var(--color-danger)', borderColor: 'rgba(239,68,68,0.3)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4
+            }}
+          >
+            <RotateCcw size={13} /> Reset
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={handleSave}
+            disabled={isSaving}
+            style={{ flex: 2, fontSize: 11, padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontWeight: 700 }}
+          >
+            <Save size={13} />
+            {isSaving ? 'Menyimpan...' : 'Simpan Jadwal'}
+          </button>
+        </div>
+
         {/* Helper Banner */}
         <div style={{
-          padding: '8px 14px',
+          padding: '8px 12px',
           background: 'var(--color-primary-light)',
           borderRadius: 'var(--radius-md)',
           marginBottom: 'var(--space-3)',
           display: 'flex',
+          flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: 6,
           border: '1px solid rgba(27,107,74,0.2)',
           fontSize: 'var(--font-size-xs)',
           color: 'var(--color-text-secondary)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Info size={15} color="var(--color-primary)" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 200 }}>
+            <Info size={15} color="var(--color-primary)" style={{ flexShrink: 0 }} />
             <span>
-              <strong>Petunjuk:</strong> Geser kartu guru dari panel kanan lalu drop ke kotak jadwal hari &amp; sesi di kiri.
+              <strong>Petunjuk:</strong> Pilih guru pada menu <strong>+ Guru</strong> di setiap kotak hari &amp; sesi, atau seret kartu guru.
             </span>
           </div>
-          <span className="badge badge-primary" style={{ fontSize: 10 }}>7 Hari x 4 Sesi</span>
+          <span className="badge badge-primary" style={{ fontSize: 10, flexShrink: 0 }}>7 Hari x 4 Sesi</span>
         </div>
 
         {/* ─── MAIN GRID + SIDEBAR ─── */}
