@@ -167,9 +167,7 @@ export async function getJadwalMatrixSupabase(): Promise<JadwalSesiEntry[]> {
     const { data, error } = await supabase
       .from('jadwal_matrix')
       .select('*')
-      .neq('id', '__sesi_config__')
-      .neq('id', '__app_settings_extra__')
-      .neq('id', '__tukar_jadwal_requests__');
+      .not('id', 'like', '__%');
 
     if (error || !data) return [];
     return data.map((d: any) => ({
@@ -186,14 +184,11 @@ export async function getJadwalMatrixSupabase(): Promise<JadwalSesiEntry[]> {
 
 export async function saveJadwalMatrixSupabase(entries: JadwalSesiEntry[]): Promise<boolean> {
   try {
-    // Delete existing matrix rows except special rows
+    // Delete only regular matrix rows, NEVER delete system rows prefixed with __
     await supabase
       .from('jadwal_matrix')
       .delete()
-      .neq('id', '___none___')
-      .neq('id', '__sesi_config__')
-      .neq('id', '__app_settings_extra__')
-      .neq('id', '__tukar_jadwal_requests__');
+      .not('id', 'like', '__%');
     if (entries.length === 0) return true;
 
     const rows = entries.map((e) => ({
