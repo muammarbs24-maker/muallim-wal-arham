@@ -68,7 +68,14 @@ export default function LoginPage() {
       }
 
       setIsLoading(false);
-      const targetUrl = found.perluGantiPassword ? '/guru/ganti-password' : '/guru/beranda';
+      let targetUrl = found.perluGantiPassword ? '/guru/ganti-password' : '/guru/beranda';
+      if (!found.perluGantiPassword && typeof window !== 'undefined') {
+        const pendingRedirect = sessionStorage.getItem('redirect_after_login');
+        if (pendingRedirect && pendingRedirect.startsWith('/guru')) {
+          targetUrl = pendingRedirect;
+          sessionStorage.removeItem('redirect_after_login');
+        }
+      }
       if (typeof window !== 'undefined') {
         window.location.href = targetUrl;
       } else {
@@ -117,7 +124,14 @@ export default function LoginPage() {
       setIsLoading(false);
       setShowGoogleModal(false);
 
-      const targetUrl = found.perluGantiPassword ? '/guru/ganti-password' : '/guru/beranda';
+      let targetUrl = found.perluGantiPassword ? '/guru/ganti-password' : '/guru/beranda';
+      if (!found.perluGantiPassword && typeof window !== 'undefined') {
+        const pendingRedirect = sessionStorage.getItem('redirect_after_login');
+        if (pendingRedirect && pendingRedirect.startsWith('/guru')) {
+          targetUrl = pendingRedirect;
+          sessionStorage.removeItem('redirect_after_login');
+        }
+      }
       if (typeof window !== 'undefined') {
         window.location.href = targetUrl;
       } else {

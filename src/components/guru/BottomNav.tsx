@@ -28,6 +28,8 @@ export default function GuruNav() {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('logged_in_guru_id');
       localStorage.removeItem('logged_in_guru_email');
+      localStorage.removeItem('muallim_guru_user');
+      sessionStorage.clear();
       window.location.href = '/';
     } else {
       router.push('/');
