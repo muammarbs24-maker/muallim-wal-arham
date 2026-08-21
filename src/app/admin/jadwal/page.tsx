@@ -155,7 +155,7 @@ export default function AdminJadwalPage() {
           </p>
         </div>
         
-        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+        <div className="hide-on-mobile" style={{ gap: 'var(--space-2)' }}>
           <button
             type="button"
             className="btn btn-secondary btn-sm"
@@ -179,47 +179,44 @@ export default function AdminJadwalPage() {
 
       <div className="admin-content">
 
-        {/* ─── SESI OVERVIEW CARDS ─── */}
-        <div style={{ marginBottom: 'var(--space-5)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(200px, 1fr))`, gap: 'var(--space-3)' }}>
-            {sesiList.map((sesi) => (
-              <div
-                key={sesi.id}
-                className="card"
-                style={{
-                  borderTop: `4px solid ${
-                    sesi.id === 'pagi' ? '#10B981' :
-                    sesi.id === 'siang' ? '#F59E0B' :
-                    sesi.id === 'sore' ? '#0EA5E9' :
-                    sesi.id === 'tahfidz' ? '#8B5CF6' : 'var(--color-primary)'
-                  }`,
-                }}
-              >
-                <div className="card-body" style={{ padding: 'var(--space-3) var(--space-4)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 'var(--font-size-xs)' }}>
-                      {SESI_ICONS[sesi.id] || <Clock size={16} color="var(--color-primary)" />}
-                      {sesi.nama}
-                    </div>
-                  </div>
-
-                  <div style={{
-                    fontSize: 'var(--font-size-lg)',
-                    fontWeight: 800,
-                    color: 'var(--color-text-primary)',
-                    fontVariantNumeric: 'tabular-nums',
-                    marginBottom: 2,
-                  }}>
-                    {sesi.jamMulai} – {sesi.jamSelesai}
-                  </div>
-
-                  <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {sesi.deskripsi}
-                  </div>
+        {/* ─── SESI OVERVIEW CARDS (4 COLS DESKTOP, 2x2 MOBILE) ─── */}
+        <div className="admin-grid-4">
+          {sesiList.map((sesi) => (
+            <div
+              key={sesi.id}
+              className="card"
+              style={{
+                borderTop: `4px solid ${
+                  sesi.id === 'pagi' ? '#10B981' :
+                  sesi.id === 'siang' ? '#F59E0B' :
+                  sesi.id === 'sore' ? '#0EA5E9' :
+                  sesi.id === 'tahfidz' ? '#8B5CF6' : 'var(--color-primary)'
+                }`,
+                padding: '12px 14px',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 'var(--font-size-xs)' }}>
+                  {SESI_ICONS[sesi.id] || <Clock size={15} color="var(--color-primary)" />}
+                  {sesi.nama}
                 </div>
               </div>
-            ))}
-          </div>
+
+              <div style={{
+                fontSize: 'var(--font-size-base)',
+                fontWeight: 800,
+                color: 'var(--color-text-primary)',
+                fontVariantNumeric: 'tabular-nums',
+                marginBottom: 2,
+              }}>
+                {sesi.jamMulai} – {sesi.jamSelesai}
+              </div>
+
+              <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {sesi.deskripsi}
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* ─── TWO ACTION TILES ─── */}
@@ -313,8 +310,8 @@ export default function AdminJadwalPage() {
             </Link>
           </div>
 
-          <div style={{ width: '100%', overflow: 'hidden' }}>
-            <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: 11 }}>
+          <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <table style={{ width: '100%', minWidth: 640, tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: 11 }}>
               <thead>
                 <tr style={{ borderBottom: '1.5px solid var(--color-border)' }}>
                   <th style={{ width: '16%', background: 'var(--color-surface-2)', padding: '10px 8px', textAlign: 'left', fontWeight: 700 }}>
