@@ -6,6 +6,7 @@ import { Users, Search, Plus, CheckCircle2, Clock, XCircle, X, Shield, Key, Mail
 import { mockGuru, hitungSkorKedisiplinan, authConfig, savePersistedGuru, loadPersistedData } from '@/lib/mockData';
 import { getInitials, generateNipYayasan } from '@/lib/utils';
 import { sendTeacherWelcomeEmail } from '@/lib/emailService';
+import { getGurusSupabase, upsertGuruSupabase } from '@/lib/supabaseClient';
 import type { Guru } from '@/types';
 
 export default function AdminGuruPage() {
@@ -19,6 +20,15 @@ export default function AdminGuruPage() {
   useEffect(() => {
     loadPersistedData();
     setGuruList([...mockGuru]);
+
+    getGurusSupabase().then((dbGurus) => {
+      if (dbGurus && dbGurus.length > 0) {
+        mockGuru.length = 0;
+        mockGuru.push(...dbGurus);
+        savePersistedGuru(dbGurus);
+        setGuruList([...dbGurus]);
+      }
+    }).catch(() => {});
   }, []);
 
   // Auto generated NIP for next teacher: MWA-YYYY-00X
@@ -50,7 +60,7 @@ export default function AdminGuruPage() {
     setShowAddModal(true);
   };
 
-  const handleAddGuru = (e: React.FormEvent) => {
+  const handleAddGuru = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.nama || !formData.email) return;
 
@@ -69,7 +79,7 @@ export default function AdminGuruPage() {
       role: 'guru',
       aktif: true,
       tanggalGabung: new Date().toISOString().split('T')[0],
-      password: authConfig.defaultGuruPassword,
+      password: authConfig.defaultGuruPassword || 'muallim123',
       perluGantiPassword: true, // Requires password update on first login!
     };
 
@@ -78,12 +88,15 @@ export default function AdminGuruPage() {
     setGuruList([...mockGuru]);
     setShowAddModal(false);
 
+    // Save to Supabase Cloud Database!
+    await upsertGuruSupabase(newGuru);
+
     // Send onboarding email containing Name, Teacher ID (NIP), Login Email, and Password!
     sendTeacherWelcomeEmail({
       nama: newGuru.nama,
       nip: newGuru.nip,
       email: newGuru.email,
-      password: newGuru.password || authConfig.defaultGuruPassword,
+      password: newGuru.password || authConfig.defaultGuruPassword || 'muallim123',
     }).then((res) => {
       console.log('Teacher credentials email status:', res);
     });

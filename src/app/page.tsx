@@ -4,7 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BookOpen, Mail, Lock, Eye, EyeOff, LogIn, Info, AlertCircle, X, ShieldCheck, UserCheck } from 'lucide-react';
-import { mockGuru, authConfig, loadPersistedData } from '@/lib/mockData';
+import { mockGuru, authConfig, loadPersistedData, savePersistedGuru } from '@/lib/mockData';
+import { getGurusSupabase } from '@/lib/supabaseClient';
+import type { Guru } from '@/types';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -29,17 +31,39 @@ export default function LoginPage() {
         router.replace('/guru/beranda');
       }
     }
+
+    // Sync teachers from Supabase on mount
+    getGurusSupabase().then((dbGurus) => {
+      if (dbGurus && dbGurus.length > 0) {
+        mockGuru.length = 0;
+        mockGuru.push(...dbGurus);
+        savePersistedGuru(dbGurus);
+      }
+    }).catch(() => {});
   }, [router]);
 
-  const handleEmailLogin = (e: React.FormEvent) => {
+  const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setIsLoading(true);
 
-    setTimeout(() => {
+    try {
       loadPersistedData();
       const trimmed = email.trim().toLowerCase();
-      const found = mockGuru.find((g) => g.email.toLowerCase() === trimmed);
+      
+      // 1. Check local memory first
+      let found: Guru | undefined = mockGuru.find((g) => g.email.toLowerCase() === trimmed);
+
+      // 2. If not found locally, fetch live from Supabase
+      if (!found) {
+        const dbGurus = await getGurusSupabase();
+        if (dbGurus && dbGurus.length > 0) {
+          mockGuru.length = 0;
+          mockGuru.push(...dbGurus);
+          savePersistedGuru(dbGurus);
+          found = dbGurus.find((g) => g.email.toLowerCase() === trimmed);
+        }
+      }
 
       if (!found) {
         setIsLoading(false);
@@ -49,9 +73,20 @@ export default function LoginPage() {
         return;
       }
 
+      if (!found.aktif) {
+        setIsLoading(false);
+        setErrorMessage('Akun Anda saat ini dinonaktifkan oleh Administrator yayasan.');
+        return;
+      }
+
       // Check password against teacher password or current dynamic default password
       const expectedPassword = found.password || authConfig.defaultGuruPassword;
-      if (password && password !== expectedPassword && password !== authConfig.defaultGuruPassword && password !== 'muallim123') {
+      if (
+        password &&
+        password !== expectedPassword &&
+        password !== authConfig.defaultGuruPassword &&
+        password !== 'muallim123'
+      ) {
         setIsLoading(false);
         setErrorMessage('Kata sandi yang Anda masukkan salah. Silakan periksa kembali.');
         return;
@@ -65,6 +100,7 @@ export default function LoginPage() {
       if (typeof window !== 'undefined') {
         localStorage.setItem('logged_in_guru_id', found.id);
         localStorage.setItem('logged_in_guru_email', found.email);
+        localStorage.setItem('muallim_guru_user', JSON.stringify(found));
       }
 
       setIsLoading(false);
@@ -81,7 +117,11 @@ export default function LoginPage() {
       } else {
         router.push(targetUrl);
       }
-    }, 200);
+    } catch (err) {
+      console.error('Error during email login:', err);
+      setIsLoading(false);
+      setErrorMessage('Terjadi kesalahan saat memeriksa akun. Silakan coba lagi.');
+    }
   };
 
   // Trigger Google Login
@@ -93,21 +133,37 @@ export default function LoginPage() {
   };
 
   // Submit Google Login Account
-  const handleSubmitGoogleAccount = (e: React.FormEvent) => {
+  const handleSubmitGoogleAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setGoogleError(null);
     setIsLoading(true);
 
-    setTimeout(() => {
+    try {
       loadPersistedData();
       const trimmed = googleEmail.trim().toLowerCase();
-      const found = mockGuru.find((g) => g.email.toLowerCase() === trimmed);
+      let found: Guru | undefined = mockGuru.find((g) => g.email.toLowerCase() === trimmed);
+
+      if (!found) {
+        const dbGurus = await getGurusSupabase();
+        if (dbGurus && dbGurus.length > 0) {
+          mockGuru.length = 0;
+          mockGuru.push(...dbGurus);
+          savePersistedGuru(dbGurus);
+          found = dbGurus.find((g) => g.email.toLowerCase() === trimmed);
+        }
+      }
 
       if (!found) {
         setIsLoading(false);
         setGoogleError(
           `Akun Google (${trimmed}) belum terdaftar di database yayasan. Silakan hubungi pihak Tata Usaha Yayasan untuk didaftarkan.`
         );
+        return;
+      }
+
+      if (!found.aktif) {
+        setIsLoading(false);
+        setGoogleError('Akun Anda saat ini sedang dinonaktifkan oleh Administrator.');
         return;
       }
 
@@ -119,6 +175,7 @@ export default function LoginPage() {
       if (typeof window !== 'undefined') {
         localStorage.setItem('logged_in_guru_id', found.id);
         localStorage.setItem('logged_in_guru_email', found.email);
+        localStorage.setItem('muallim_guru_user', JSON.stringify(found));
       }
 
       setIsLoading(false);
@@ -137,7 +194,11 @@ export default function LoginPage() {
       } else {
         router.push(targetUrl);
       }
-    }, 200);
+    } catch (err) {
+      console.error('Error during google login:', err);
+      setIsLoading(false);
+      setGoogleError('Terjadi kesalahan saat memeriksa akun Google. Silakan coba lagi.');
+    }
   };
 
   // Quick select a registered teacher for fast Google Login demo
