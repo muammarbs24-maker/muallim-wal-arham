@@ -161,6 +161,20 @@ export default function JadwalPage() {
     return isTarget && (r.status === 'pending' || (r.status as string) === 'menunggu');
   });
 
+  // Resolved incoming requests targeted to current teacher (already accepted or rejected)
+  const incomingResolvedRequests = swapRequests.filter((r) => {
+    const currentId = activeGuru?.id || '';
+    const currentName = (activeGuru?.nama || '').toLowerCase().trim();
+    const targetId = r.targetGuruId || '';
+    const targetName = (r.targetGuruNama || '').toLowerCase().trim();
+
+    const isTarget =
+      (currentId && targetId && currentId === targetId) ||
+      (currentName && targetName && (currentName.includes(targetName) || targetName.includes(currentName)));
+
+    return isTarget && (r.status === 'disetujui' || r.status === 'ditolak');
+  });
+
   // Outgoing requests made by current teacher
   const outgoingRequests = swapRequests.filter((r) => {
     const currentId = activeGuru?.id || '';
@@ -476,6 +490,7 @@ export default function JadwalPage() {
         {activeTab === 'tukar' && (
           <TukarJadwalManagement
             incoming={incomingPendingRequests}
+            incomingResolved={incomingResolvedRequests}
             outgoing={outgoingRequests}
             onRespond={handleInitiateRespondSwap}
             onOpenModal={() => handleOpenSwapModal()}
@@ -938,11 +953,13 @@ function MatriksJadwalKeseluruhan({
 // ─── TAB 3: MANAJEMEN TUKAR JADWAL ───────────────────────────────────
 function TukarJadwalManagement({
   incoming,
+  incomingResolved,
   outgoing,
   onRespond,
   onOpenModal,
 }: {
   incoming: TukarJadwalRequest[];
+  incomingResolved: TukarJadwalRequest[];
   outgoing: TukarJadwalRequest[];
   onRespond: (req: TukarJadwalRequest, accept: boolean) => void;
   onOpenModal: () => void;
@@ -979,7 +996,7 @@ function TukarJadwalManagement({
         </button>
       </div>
 
-      {/* 1. PERMINTAAN MASUK */}
+      {/* 1. PERMINTAAN MASUK (MENUNGGU RESPON) */}
       <div>
         <h3 style={{ fontSize: 'var(--font-size-base)', fontWeight: 800, marginBottom: 'var(--space-3)', display: 'flex', alignItems: 'center', gap: 6 }}>
           📥 Permintaan Tukar Jadwal Masuk ({incoming.length})
@@ -987,7 +1004,7 @@ function TukarJadwalManagement({
 
         {incoming.length === 0 ? (
           <div style={{ padding: 'var(--space-4)', background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', textAlign: 'center', border: '1px solid var(--color-border-light)', color: 'var(--color-text-tertiary)', fontSize: 12.5 }}>
-            Tidak ada permintaan tukar jadwal yang menunggu respon Anda.
+            Tidak ada permintaan tukar jadwal yang menunggu respon Anda saat ini.
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
@@ -1096,6 +1113,11 @@ function TukarJadwalManagement({
                       ❌ Alasan penolakan: &ldquo;{req.alasanPenolakan}&rdquo;
                     </div>
                   )}
+                  {req.status === 'disetujui' && (
+                    <div style={{ fontSize: 11, color: '#059669', marginTop: 4, fontWeight: 600 }}>
+                      ✓ Permintaan tukar jadwal Anda telah disetujui.
+                    </div>
+                  )}
                 </div>
 
                 <span className={`badge ${
@@ -1109,6 +1131,58 @@ function TukarJadwalManagement({
           </div>
         )}
       </div>
+
+      {/* 3. RIWAYAT PERMINTAAN MASUK YANG TELAH DITANGGAPI */}
+      {incomingResolved.length > 0 && (
+        <div>
+          <h3 style={{ fontSize: 'var(--font-size-base)', fontWeight: 800, marginBottom: 'var(--space-3)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            📋 Riwayat Permintaan Masuk yang Telah Ditanggapi ({incomingResolved.length})
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            {incomingResolved.map((req) => (
+              <div
+                key={req.id}
+                style={{
+                  padding: '10px 14px',
+                  background: 'var(--color-surface)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--color-border-light)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700 }}>
+                    Permintaan dari: {req.requesterGuruNama} ({req.requesterHari}, {req.requesterSesiNama} ⇄ {req.targetHari}, {req.targetSesiNama})
+                  </div>
+                  {req.catatan && (
+                    <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>
+                      Catatan Pengaju: &ldquo;{req.catatan}&rdquo;
+                    </div>
+                  )}
+                  {req.status === 'ditolak' && req.alasanPenolakan && (
+                    <div style={{ fontSize: 11, color: '#DC2626', marginTop: 4, fontStyle: 'italic' }}>
+                      ❌ Alasan Anda menolak: &ldquo;{req.alasanPenolakan}&rdquo;
+                    </div>
+                  )}
+                  {req.status === 'disetujui' && (
+                    <div style={{ fontSize: 11, color: '#059669', marginTop: 4, fontWeight: 600 }}>
+                      ✓ Anda telah menyetujui penukaran jadwal ini.
+                    </div>
+                  )}
+                </div>
+
+                <span className={`badge ${
+                  req.status === 'disetujui' ? 'badge-success' : 'badge-danger'
+                }`}>
+                  {req.status === 'disetujui' ? '✓ Disetujui' : '✕ Ditolak'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
     </div>
   );
