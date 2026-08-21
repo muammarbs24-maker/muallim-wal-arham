@@ -134,28 +134,34 @@ export default function JadwalPage() {
     }).catch(() => {});
   }, []);
 
-  const mySchedules = schedulesList.filter((j) => (j.guruId === activeGuru.id || j.guruNama === activeGuru.nama) && j.aktif);
+  const mySchedules = schedulesList.filter((j) => (j.guruId === activeGuru.id || j.guruNama === activeGuru.nama || (activeGuru.nama && j.guruNama.toLowerCase() === activeGuru.nama.toLowerCase())) && j.aktif);
 
   // Pending incoming requests targeted to current teacher
-  const incomingPendingRequests = swapRequests.filter(
-    (r) => r.targetGuruId === activeGuru.id && r.status === 'pending'
-  );
+  const incomingPendingRequests = swapRequests.filter((r) => {
+    const isTarget = r.targetGuruId === activeGuru.id ||
+      (r.targetGuruNama && activeGuru.nama && r.targetGuruNama.toLowerCase() === activeGuru.nama.toLowerCase());
+    return isTarget && (r.status === 'pending' || (r.status as string) === 'menunggu');
+  });
 
   // Outgoing requests made by current teacher
-  const outgoingRequests = swapRequests.filter(
-    (r) => r.requesterGuruId === activeGuru.id
-  );
+  const outgoingRequests = swapRequests.filter((r) => {
+    return r.requesterGuruId === activeGuru.id ||
+      (r.requesterGuruNama && activeGuru.nama && r.requesterGuruNama.toLowerCase() === activeGuru.nama.toLowerCase());
+  });
 
   const handleOpenSwapModal = (mySlotPreset?: { hari: DayOfWeek; sesiId: SesiType; sesiNama: string }) => {
     if (mySlotPreset) {
       setSelectedMySlot(mySlotPreset);
     } else if (mySchedules.length > 0) {
       const first = mySchedules[0];
+      const sesi = sesiList.find((s) => s.id === first.sesiId);
       setSelectedMySlot({
         hari: first.hari,
         sesiId: first.sesiId || 'pagi',
-        sesiNama: first.mataPelajaran,
+        sesiNama: sesi ? sesi.nama : first.mataPelajaran,
       });
+    } else {
+      setSelectedMySlot(null);
     }
     setShowSwapModal(true);
   };
@@ -884,6 +890,35 @@ function TukarJadwalManagement({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
       
+      {/* HEADER & ACTION BUTTON */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        background: 'var(--color-surface)',
+        padding: '14px 16px',
+        borderRadius: 'var(--radius-lg)',
+        border: '1px solid var(--color-border-light)',
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: 'var(--font-size-base)', color: 'var(--color-text-primary)' }}>
+            Permintaan Tukar Jadwal
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginTop: 2 }}>
+            Ajukan permohonan atau tanggapi permintaan tukar jadwal dari pengajar lain
+          </div>
+        </div>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          onClick={onOpenModal}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700, flexShrink: 0 }}
+        >
+          <ArrowRightLeft size={15} /> Ajukan Tukar Jadwal
+        </button>
+      </div>
+
       {/* 1. PERMINTAAN MASUK */}
       <div>
         <h3 style={{ fontSize: 'var(--font-size-base)', fontWeight: 800, marginBottom: 'var(--space-3)', display: 'flex', alignItems: 'center', gap: 6 }}>
