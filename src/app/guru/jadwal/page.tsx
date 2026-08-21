@@ -570,7 +570,9 @@ function JadwalSaya({
                       <Clock size={12} /> {j.jamMulai}–{j.jamSelesai} WITA
                     </div>
                     <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 6, flexWrap: 'wrap' }}>
-                      <span className="badge badge-primary">{j.catatan || j.kelas || j.mataPelajaran}</span>
+                      {j.catatan && j.catatan !== 'Ustadz' && j.catatan !== 'Ustadzah' && j.catatan !== j.mataPelajaran && (
+                        <span className="badge badge-primary">{j.catatan}</span>
+                      )}
                       {lokasiNama && (
                         <span className="badge badge-neutral" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                           <MapPin size={11} /> {lokasiNama}

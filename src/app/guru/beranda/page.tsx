@@ -582,8 +582,9 @@ export default function BerandaPage() {
                   </span>
                   <h3 style={{ fontSize: 'var(--font-size-base)', fontWeight: 800 }}>{activeJadwal.mataPelajaran}</h3>
                   <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', marginTop: 2 }}>
-                    {activeJadwal.catatan ? `Mata Pelajaran: ${activeJadwal.catatan}` : `Kelas: ${activeJadwal.kelas}`}
-                    {appSettings.lokasiNama ? ` • Ruang: ${appSettings.lokasiNama}` : ''}
+                    {activeJadwal.catatan && activeJadwal.catatan !== 'Ustadz' && activeJadwal.catatan !== 'Ustadzah' ? `${activeJadwal.catatan}` : ''}
+                    {activeJadwal.catatan && activeJadwal.catatan !== 'Ustadz' && activeJadwal.catatan !== 'Ustadzah' && appSettings.lokasiNama ? ' • ' : ''}
+                    {appSettings.lokasiNama ? `Lokasi: ${appSettings.lokasiNama}` : ''}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
@@ -916,7 +917,10 @@ export default function BerandaPage() {
                       fontSize: 'var(--font-size-xs)'
                     }}>
                       <div>
-                        <div style={{ fontWeight: 700 }}>{j.mataPelajaran} ({j.kelas})</div>
+                        <div style={{ fontWeight: 700 }}>
+                          {j.mataPelajaran}
+                          {j.catatan && j.catatan !== 'Ustadz' && j.catatan !== 'Ustadzah' && j.catatan !== j.mataPelajaran ? ` (${j.catatan})` : ''}
+                        </div>
                         <div style={{ color: 'var(--color-text-tertiary)', fontSize: 11 }}>{j.jamMulai}–{j.jamSelesai} WITA</div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
@@ -1091,7 +1095,9 @@ export default function BerandaPage() {
                       )}
 
                       <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-3)', flexWrap: 'wrap' }}>
-                        <span className="badge badge-primary">{j.catatan || j.kelas || j.mataPelajaran}</span>
+                        {j.catatan && j.catatan !== 'Ustadz' && j.catatan !== 'Ustadzah' && j.catatan !== j.mataPelajaran && (
+                          <span className="badge badge-primary">{j.catatan}</span>
+                        )}
                         {appSettings.lokasiNama && (
                           <span className="badge badge-neutral" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                             <MapPin size={11} /> {appSettings.lokasiNama}
