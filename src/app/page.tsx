@@ -21,24 +21,16 @@ export default function LoginPage() {
   const [googleEmail, setGoogleEmail] = useState('');
   const [googleError, setGoogleError] = useState<string | null>(null);
 
-  // Splash Screen State (5 Detik Selamat Datang)
+  // Splash Screen State (1.2 Detik Selamat Datang)
   const [showSplash, setShowSplash] = useState(true);
-  const [splashCountdown, setSplashCountdown] = useState(5);
 
   useEffect(() => {
-    // Countdown timer 5 detik untuk Splash Screen
-    const timer = setInterval(() => {
-      setSplashCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          setShowSplash(false);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    // Timer 1,2 detik untuk Splash Screen
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 1200);
 
-    return () => clearInterval(timer);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -326,14 +318,14 @@ export default function LoginPage() {
             Yayasan Tahfidz Mu&apos;Allim Wal Arham Makassar
           </p>
 
-          {/* Indikator Countdown 5 Detik */}
+          {/* Indikator Animasi 1.2 Detik */}
           <div style={{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: 12,
+            gap: 10,
             width: '100%',
-            maxWidth: 240,
+            maxWidth: 220,
           }}>
             <div style={{
               width: '100%',
@@ -344,41 +336,19 @@ export default function LoginPage() {
             }}>
               <div style={{
                 height: '100%',
-                width: `${((5 - splashCountdown) / 5) * 100}%`,
                 background: 'linear-gradient(90deg, #FCD34D, #F59E0B)',
-                transition: 'width 1s linear',
+                animation: 'splash-progress 1.2s ease-out forwards',
               }} />
             </div>
 
             <div style={{
-              fontSize: 11.5,
+              fontSize: 11,
               color: 'rgba(255, 255, 255, 0.75)',
               fontWeight: 600,
+              letterSpacing: '0.3px',
             }}>
-              Membuka form login dalam {splashCountdown} detik...
+              Memuat sistem presensi...
             </div>
-
-            {/* Tombol Lewati / Masuk Langsung */}
-            <button
-              type="button"
-              onClick={() => setShowSplash(false)}
-              style={{
-                marginTop: 6,
-                padding: '6px 16px',
-                borderRadius: 9999,
-                background: 'rgba(255, 255, 255, 0.15)',
-                border: '1px solid rgba(255, 255, 255, 0.3)',
-                color: '#ffffff',
-                fontSize: 11.5,
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)')}
-            >
-              Lewati &rarr;
-            </button>
           </div>
 
           <style>{`
@@ -389,6 +359,10 @@ export default function LoginPage() {
             @keyframes splash-fade-in {
               from { opacity: 0; transform: scale(0.98); }
               to { opacity: 1; transform: scale(1); }
+            }
+            @keyframes splash-progress {
+              from { width: 0%; }
+              to { width: 100%; }
             }
           `}</style>
         </div>
