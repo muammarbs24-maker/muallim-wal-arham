@@ -73,7 +73,7 @@ export default function AdminKegiatanPage() {
       }).catch(() => {});
 
       getKegiatanListSupabase().then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           mockKegiatan.length = 0;
           mockKegiatan.push(...data);
           setKegiatanList([...data]);

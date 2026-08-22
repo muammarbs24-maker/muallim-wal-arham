@@ -418,10 +418,42 @@ export async function saveAppSettingsSupabase(settings: AppSettings): Promise<bo
 
 export async function resetAllDataExceptGurusSupabase(): Promise<boolean> {
   try {
-    // Delete all attendance records
+    // 1. Delete all attendance records
     await supabase.from('absensi_records').delete().neq('id', '___none___');
-    // Delete all schedule matrix records except config rows
-    await supabase.from('jadwal_matrix').delete().neq('id', '___none___').neq('id', '__sesi_config__').neq('id', '__app_settings_extra__').neq('id', '__kegiatan_list__').neq('id', '__kegiatan_partisipasi__');
+
+    // 2. Delete all schedule matrix records except config rows
+    await supabase
+      .from('jadwal_matrix')
+      .delete()
+      .neq('id', '___none___')
+      .neq('id', '__sesi_config__')
+      .neq('id', '__app_settings_extra__');
+
+    // 3. Explicitly reset kegiatan list, partisipasi list, and swap requests to empty JSON arrays
+    await supabase.from('jadwal_matrix').upsert([
+      {
+        id: '__kegiatan_list__',
+        hari: 'Senin',
+        sesi_id: '[]',
+        guru_ids: [],
+        updated_at: new Date().toISOString(),
+      },
+      {
+        id: '__kegiatan_partisipasi__',
+        hari: 'Senin',
+        sesi_id: '[]',
+        guru_ids: [],
+        updated_at: new Date().toISOString(),
+      },
+      {
+        id: '__tukar_jadwal_requests__',
+        hari: 'Senin',
+        sesi_id: '[]',
+        guru_ids: [],
+        updated_at: new Date().toISOString(),
+      },
+    ], { onConflict: 'id' });
+
     return true;
   } catch (err) {
     console.error('Error resetAllDataExceptGurusSupabase:', err);

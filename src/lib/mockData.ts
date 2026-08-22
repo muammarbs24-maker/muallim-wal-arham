@@ -253,10 +253,10 @@ export function loadPersistedData(): void {
     }
 
     const savedKegiatan = localStorage.getItem('muallim_kegiatan_list');
-    if (savedKegiatan) {
+    if (savedKegiatan !== null) {
       try {
         const parsed = JSON.parse(savedKegiatan);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           mockKegiatan.length = 0;
           mockKegiatan.push(...parsed);
         }
@@ -264,7 +264,7 @@ export function loadPersistedData(): void {
     }
 
     const savedPartisipasi = localStorage.getItem('muallim_partisipasi_list');
-    if (savedPartisipasi) {
+    if (savedPartisipasi !== null) {
       try {
         const parsed = JSON.parse(savedPartisipasi);
         if (Array.isArray(parsed)) {
@@ -411,32 +411,10 @@ export function getJadwalForGuru(guruId: string): Jadwal[] {
 }
 
 // ============================================================
-// 4. DATA KEGIATAN YAYASAN (DEFAULT AKTIF & SAMPLE)
+// 4. DATA KEGIATAN YAYASAN (DEFAULT BERSIH)
 // ============================================================
 
-export const mockKegiatan: Kegiatan[] = [
-  {
-    id: 'kegiatan-pelatihan-tahfidz-2026',
-    nama: "Pelatihan & Standardisasi Guru Al-Qur'an Mu'Allim 2026",
-    deskripsi: "Pelatihan intensif metode pengajaran Tahsin, Tahfidz, dan Manajemen Halaqah Qur'an Yayasan Mu'Allim Wal Arham.",
-    hariMulai: 'Sabtu',
-    tanggalMulai: '2026-08-22',
-    hariSelesai: 'Senin',
-    tanggalSelesai: '2026-08-24',
-    jamMulai: '08:00',
-    jamSelesai: '16:30',
-    batasPendaftaran: '2026-08-24T07:30',
-    lokasi: "Aula Utama Yayasan Tahfidz Mu'Allim Wal Arham, Makassar",
-    linkMaps: '', // Kosong agar menguji pembuatan link maps otomatis sistem
-    jenis: 'Pelatihan',
-    wajib: true,
-    poinPeserta: 10,
-    poinPanitia: 15,
-    poinKoordinator: 20,
-    status: 'berlangsung',
-    absensiAktif: true,
-  },
-];
+export const mockKegiatan: Kegiatan[] = [];
 
 export const mockPartisipasi: KegiatanPartisipasi[] = [];
 
