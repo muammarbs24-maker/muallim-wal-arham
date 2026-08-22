@@ -98,8 +98,8 @@ export default function AdminSidebar() {
               }}
             />
             <div>
-              <div style={{ fontWeight: 800, fontSize: 14, lineHeight: 1.2, color: 'var(--color-text-primary)' }}>
-                Mu&apos;Allim
+              <div style={{ fontWeight: 900, fontSize: 14, lineHeight: 1.2, color: 'var(--color-text-primary)', letterSpacing: '0.5px' }}>
+                SIPETA
               </div>
               <div style={{ fontSize: 10, color: 'var(--color-primary)', fontWeight: 700 }}>
                 {getCurrentTitle()}
@@ -154,8 +154,8 @@ export default function AdminSidebar() {
                 }}
               />
               <div>
-                <div className="sidebar-logo-text">Mu&apos;Allim</div>
-                <div className="sidebar-logo-sub">Panel Admin</div>
+                <div className="sidebar-logo-text" style={{ fontWeight: 900, letterSpacing: '0.5px' }}>SIPETA</div>
+                <div className="sidebar-logo-sub" style={{ fontSize: 10, fontWeight: 600 }}>Panel Admin</div>
               </div>
             </div>
             <button

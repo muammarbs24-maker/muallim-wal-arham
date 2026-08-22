@@ -143,20 +143,29 @@ export default function AdminLoginPage() {
             marginBottom: 8,
             textShadow: '0 2px 8px rgba(0,0,0,0.3)',
           }}>
-            Selamat Datang di Portal Administrator
+            SIPETA — Portal Administrator
           </div>
 
           <h1 style={{
-            fontSize: 'clamp(20px, 5vw, 26px)',
+            fontSize: 'clamp(22px, 5vw, 28px)',
             fontWeight: 900,
             color: '#ffffff',
-            margin: '0 0 6px',
+            margin: '0 0 4px',
             letterSpacing: '-0.5px',
-            lineHeight: 1.25,
+            lineHeight: 1.2,
             maxWidth: 480,
           }}>
-            Yayasan Tahfidz Mu&apos;Allim Wal Arham
+            SIPETA
           </h1>
+
+          <p style={{
+            fontSize: 14,
+            fontWeight: 700,
+            color: '#FCD34D',
+            margin: '0 0 4px',
+          }}>
+            Sistem Informasi Presensi Tenaga Ajar
+          </p>
 
           <p style={{
             fontSize: 13,
@@ -165,7 +174,7 @@ export default function AdminLoginPage() {
             fontWeight: 500,
             letterSpacing: '0.5px',
           }}>
-            Makassar — Indonesia
+            Yayasan Tahfidz Mu&apos;Allim Wal Arham Makassar
           </p>
 
           {/* Indikator Countdown 5 Detik */}
@@ -266,19 +275,26 @@ export default function AdminLoginPage() {
           />
           <h1 style={{
             fontSize: 'var(--font-size-2xl)',
-            fontWeight: 800,
+            fontWeight: 900,
             color: 'var(--color-text-primary)',
             letterSpacing: '-0.5px',
           }}>
-            Portal Administrator
+            SIPETA Admin
           </h1>
           <p style={{
             fontSize: 'var(--font-size-sm)',
             color: 'var(--color-text-secondary)',
             marginTop: 2,
-            fontWeight: 600,
+            fontWeight: 700,
           }}>
-            Yayasan Tahfidz Mu&apos;Allim Wal Arham
+            Sistem Informasi Presensi Tenaga Ajar
+          </p>
+          <p style={{
+            fontSize: 'var(--font-size-xs)',
+            color: 'var(--color-text-tertiary)',
+            marginTop: 2,
+          }}>
+            Yayasan Tahfidz Mu&apos;Allim Wal Arham Makassar
           </p>
         </div>
 

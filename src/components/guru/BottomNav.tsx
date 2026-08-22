@@ -72,8 +72,8 @@ export default function GuruNav() {
               }}
             />
             <div>
-              <div className="sidebar-logo-text">Mu&apos;Allim</div>
-              <div className="sidebar-logo-sub">Sistem Absensi</div>
+              <div className="sidebar-logo-text" style={{ fontWeight: 900, letterSpacing: '0.5px' }}>SIPETA</div>
+              <div className="sidebar-logo-sub" style={{ fontSize: 10, fontWeight: 600 }}>Presensi Tenaga Ajar</div>
             </div>
           </div>
         </div>
