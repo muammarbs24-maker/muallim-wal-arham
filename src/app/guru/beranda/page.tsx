@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   MapPin, Clock, CheckCircle2, AlertCircle, LogIn, LogOut,
   Calendar, ChevronRight, Wifi, Briefcase, Sparkles, Check,
-  Navigation, RotateCcw, Timer, Plane, Radio
+  Navigation, RotateCcw, Timer, Plane, Radio, Send
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -52,6 +52,12 @@ export default function BerandaPage() {
   const [visitModeMap, setVisitModeMap] = useState<Record<string, boolean>>({}); // visit mode per sesi
   const [gpsZoneMap, setGpsZoneMap] = useState<Record<string, 'inside' | 'outside' | 'unknown'>>({}); // status zona per sesi
   const [lastGpsCheckMap, setLastGpsCheckMap] = useState<Record<string, string>>({}); // waktu cek terakhir
+
+  // Modal Kendala / Izin / Sakit Langsung dari Beranda
+  const [showKendalaModal, setShowKendalaModal] = useState<Jadwal | null>(null);
+  const [kendalaTipe, setKendalaTipe] = useState<'izin' | 'sakit'>('izin');
+  const [kendalaAlasan, setKendalaAlasan] = useState('');
+  const [isSubmittingKendala, setIsSubmittingKendala] = useState(false);
 
   // Refs untuk hindari stale closure di interval GPS
   const sessionsMapRef = useRef(sessionsMap);
@@ -623,6 +629,73 @@ export default function BerandaPage() {
     });
   };
 
+  // ── Pengajuan Izin / Sakit Sesi Mengajar Langsung dari Beranda ───────────
+  const handleSubmitKendala = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showKendalaModal || !kendalaAlasan.trim()) {
+      alert('Mohon tuliskan keterangan / alasan kendala Anda.');
+      return;
+    }
+
+    setIsSubmittingKendala(true);
+    const jadwal = showKendalaModal;
+    const recordId = `abs-${todayStr}-${jadwal.id}-${guruData.id}`;
+    const now = getNowWITA();
+
+    const newRecord: AbsensiRecord = {
+      id: recordId,
+      guruId: guruData.id,
+      guruNama: guruData.nama,
+      tanggal: todayStr,
+      jamMasuk: null,
+      jamPulang: null,
+      status: kendalaTipe,
+      keterlambatan: 0,
+      lokasiValid: true,
+      keterangan: `Pengajuan ${kendalaTipe === 'izin' ? 'Izin' : 'Sakit'} (${jadwal.mataPelajaran}): ${kendalaAlasan.trim()}`,
+      dibuatPada: now.toISOString(),
+    };
+
+    // 1. Simpan ke daftar absensi lokal
+    const updatedList = mockAbsensi.filter((a) => a.id !== recordId);
+    updatedList.unshift(newRecord);
+    mockAbsensi.length = 0;
+    mockAbsensi.push(...updatedList);
+    savePersistedAbsensi(updatedList);
+
+    // 2. Tandai di sessionsMap sesi ini sebagai selesai dengan status izin/sakit
+    const updatedSesi: SesiAttendanceData = {
+      jadwalId: jadwal.id,
+      mataPelajaran: jadwal.mataPelajaran,
+      jamMulai: jadwal.jamMulai,
+      jamSelesai: jadwal.jamSelesai,
+      kelas: jadwal.kelas,
+      jamMasuk: null,
+      jamPulang: null,
+      status: kendalaTipe,
+      isDone: true,
+    };
+
+    const nextMap = { ...sessionsMapRef.current, [jadwal.id]: updatedSesi };
+    sessionsMapRef.current = nextMap;
+    setSessionsMap(nextMap);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`muallim_session_absensi_${todayStr}_${guruData.id}`, JSON.stringify(nextMap));
+    }
+
+    // 3. Simpan ke Supabase Cloud
+    try {
+      const { upsertAbsensiSupabase } = await import('@/lib/supabaseClient');
+      await upsertAbsensiSupabase(newRecord);
+    } catch (err) {}
+
+    setIsSubmittingKendala(false);
+    setShowKendalaModal(null);
+    setKendalaAlasan('');
+    setShowSuccess(`✓ Pengajuan ${kendalaTipe === 'izin' ? 'Izin' : 'Sakit'} sesi ${jadwal.mataPelajaran} berhasil dikirim!`);
+    setTimeout(() => setShowSuccess(null), 5000);
+  };
+
   // Eksekusi Absen Masuk Sesi - Cepat & Strict Radius Check
 
   const handleAbsenMasuk = async (jadwal: typeof todayJadwal[0]) => {
@@ -835,6 +908,80 @@ export default function BerandaPage() {
             border: '1px solid #B91C1C'
           }}>
             {showError}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PENGAJUAN KENDALA / IZIN / SAKIT (BERANDA) */}
+      {showKendalaModal && (
+        <div className="modal-overlay" onClick={() => setShowKendalaModal(null)}>
+          <div className="modal" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: 'var(--font-size-base)', fontWeight: 800, color: 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertCircle size={18} color="#EA580C" /> Pengajuan Kendala / Izin Sesi
+              </h3>
+            </div>
+            <form onSubmit={handleSubmitKendala}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                <div style={{ padding: '10px 12px', background: 'var(--color-surface-2)', borderRadius: 'var(--radius-md)', fontSize: 12 }}>
+                  <div style={{ fontWeight: 700, color: 'var(--color-primary)' }}>
+                    {showKendalaModal.mataPelajaran} ({showKendalaModal.jamMulai}–{showKendalaModal.jamSelesai} WITA)
+                  </div>
+                  <div style={{ color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                    Hari Ini: {hariIni}, {currentDate}
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 700 }}>Pilih Kategori Kendala</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${kendalaTipe === 'izin' ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => setKendalaTipe('izin')}
+                      style={{ fontWeight: 800, padding: '10px 14px' }}
+                    >
+                      Izin
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${kendalaTipe === 'sakit' ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => setKendalaTipe('sakit')}
+                      style={{ fontWeight: 800, padding: '10px 14px' }}
+                    >
+                      Sakit
+                    </button>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 700 }}>Keterangan / Alasan Kendala *</label>
+                  <textarea
+                    className="form-input"
+                    rows={3}
+                    placeholder="Contoh: Mengalami kendala darurat di jalan / Sakit demam mendadak..."
+                    value={kendalaAlasan}
+                    onChange={(e) => setKendalaAlasan(e.target.value)}
+                    required
+                    style={{ fontSize: 12.5 }}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowKendalaModal(null)}>
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-sm"
+                  disabled={isSubmittingKendala}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
+                >
+                  <Send size={13} /> {isSubmittingKendala ? 'Mengirim...' : 'Kirim Konfirmasi'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -1054,37 +1201,75 @@ export default function BerandaPage() {
 
               {/* Tombol Absen — state per-sesi */}
               {locState === 'idle' && (
-                <button
-                  type="button"
-                  className="absen-btn-main"
-                  onClick={() => handleCheckLocation(jadwal.id)}
-                  disabled={!!isProcessing}
-                  style={{
-                    cursor: 'pointer',
-                    background: sessionData?.jamMasuk
-                      ? 'linear-gradient(135deg, #EA580C, #C2410C)'
-                      : 'linear-gradient(135deg, #1B6B4A, #14532D)',
-                    color: 'white',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    padding: '14px 20px',
-                    borderRadius: 'var(--radius-md)',
-                    fontWeight: 800,
-                    width: '100%',
-                    boxShadow: sessionData?.jamMasuk
-                      ? '0 4px 14px rgba(234, 88, 12, 0.25)'
-                      : '0 4px 14px rgba(27, 107, 74, 0.25)',
-                    border: 'none'
-                  }}
-                >
-                  {sessionData?.jamMasuk ? (
-                    <><LogOut size={20} /> Absen Pulang — {jadwal.mataPelajaran}</>
-                  ) : (
-                    <><MapPin size={20} /> Cek Lokasi Absensi ({jadwal.mataPelajaran})</>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+                  <button
+                    type="button"
+                    className="absen-btn-main"
+                    onClick={() => handleCheckLocation(jadwal.id)}
+                    disabled={!!isProcessing}
+                    style={{
+                      flex: 1,
+                      cursor: 'pointer',
+                      background: sessionData?.jamMasuk
+                        ? 'linear-gradient(135deg, #EA580C, #C2410C)'
+                        : 'linear-gradient(135deg, #1B6B4A, #14532D)',
+                      color: 'white',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      padding: '14px 16px',
+                      borderRadius: 'var(--radius-md)',
+                      fontWeight: 800,
+                      boxShadow: sessionData?.jamMasuk
+                        ? '0 4px 14px rgba(234, 88, 12, 0.25)'
+                        : '0 4px 14px rgba(27, 107, 74, 0.25)',
+                      border: 'none'
+                    }}
+                  >
+                    {sessionData?.jamMasuk ? (
+                      <><LogOut size={18} /> Absen Pulang ({jadwal.mataPelajaran})</>
+                    ) : (
+                      <><MapPin size={18} /> Cek Lokasi Absensi ({jadwal.mataPelajaran})</>
+                    )}
+                  </button>
+
+                  {/* Tombol Kendala / Izin / Sakit di samping Cek Lokasi */}
+                  {!sessionData?.jamMasuk && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowKendalaModal(jadwal);
+                        setKendalaTipe('izin');
+                        setKendalaAlasan('');
+                      }}
+                      disabled={!!isProcessing}
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1.5px solid #FED7AA',
+                        background: '#FFF7ED',
+                        color: '#C2410C',
+                        fontWeight: 800,
+                        fontSize: 11.5,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 2,
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                        minWidth: 84,
+                        boxShadow: '0 2px 8px rgba(249, 115, 22, 0.08)',
+                        transition: 'all 0.15s ease',
+                      }}
+                      title="Ada Kendala? Ajukan Izin / Sakit"
+                    >
+                      <AlertCircle size={16} color="#EA580C" />
+                      <span>Kendala / Izin</span>
+                    </button>
                   )}
-                </button>
+                </div>
               )}
 
               {locState === 'checking' && (
@@ -1112,11 +1297,25 @@ export default function BerandaPage() {
                     >
                       <Navigation size={17} /> Menuju Lokasi Absen (Buka Rute Maps)
                     </a>
-                    <button type="button" onClick={() => handleCheckLocation(jadwal.id)} disabled={!!isProcessing}
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 16px', borderRadius: 'var(--radius-md)', fontWeight: 700, fontSize: 12.5, background: '#ffffff', color: '#374151', border: '1px solid #D1D5DB', cursor: 'pointer' }}
-                    >
-                      <RotateCcw size={15} /> Cek Lokasi Lagi
-                    </button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button type="button" onClick={() => handleCheckLocation(jadwal.id)} disabled={!!isProcessing}
+                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 14px', borderRadius: 'var(--radius-md)', fontWeight: 700, fontSize: 12, background: '#ffffff', color: '#374151', border: '1px solid #D1D5DB', cursor: 'pointer' }}
+                      >
+                        <RotateCcw size={14} /> Cek Lagi
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowKendalaModal(jadwal);
+                          setKendalaTipe('izin');
+                          setKendalaAlasan('');
+                        }}
+                        disabled={!!isProcessing}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 14px', borderRadius: 'var(--radius-md)', fontWeight: 700, fontSize: 12, background: '#FFF7ED', color: '#C2410C', border: '1px solid #FDBA74', cursor: 'pointer' }}
+                      >
+                        <AlertCircle size={14} /> Ajukan Izin / Sakit
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
