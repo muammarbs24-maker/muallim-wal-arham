@@ -85,7 +85,9 @@ export async function GET(request: Request) {
     const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
     const smtpUser = process.env.SMTP_USER;
     const smtpPass = process.env.SMTP_PASS;
-    const emailFrom = process.env.EMAIL_FROM || `"Yayasan Mu'Allim Wal Arham" <${smtpUser || 'noreply@muallim.sch.id'}>`;
+    const emailFrom = smtpUser
+      ? `"Yayasan Tahfidz Mu'Allim Wal Arham" <${smtpUser}>`
+      : (process.env.EMAIL_FROM || '"Yayasan Mu\'Allim Wal Arham" <noreply@muallim.sch.id>');
 
     const transporter = (smtpUser && smtpPass) ? nodemailer.createTransport({
       host: smtpHost,
@@ -94,23 +96,23 @@ export async function GET(request: Request) {
       auth: { user: smtpUser, pass: smtpPass },
     }) : null;
 
-    // 4. Periksa apakah ada sesi yang baru terbuka saat ini
+    // 4. Periksa apakah ada sesi yang baru terbuka saat ini (tepat di jendela pembukaan)
     for (const entry of matrixRows) {
       const sesi = sesiMap[entry.sesi_id];
       if (!sesi) continue;
 
       const jamMulaiMins = timeToMinutes(sesi.jam_mulai);
-      const jamSelesaiMins = timeToMinutes(sesi.jam_selesai);
       const windowOpenMins = jamMulaiMins - leadMinutes;
 
-      // Jendela Buka: currentTotalMinutes >= windowOpenMins && currentTotalMinutes <= jamSelesaiMins
-      const isWindowOpen = currentTotalMinutes >= windowOpenMins && currentTotalMinutes <= jamSelesaiMins;
+      // Jendela Notifikasi Buka: Hanya pada waktu pembukaan awal (windowOpenMins s.d 15 menit setelah jam mulai)
+      const isWindowOpen = currentTotalMinutes >= windowOpenMins && currentTotalMinutes <= (jamMulaiMins + 15);
       if (!isWindowOpen) continue;
 
       const guruIds = Array.isArray(entry.guru_ids) ? entry.guru_ids : [];
       for (const gid of guruIds) {
         const guru = guruMap[gid];
-        if (!guru || !guru.email) continue;
+        // Pastikan guru ada, memiliki email, dan aktif
+        if (!guru || !guru.email || !guru.aktif) continue;
 
         // Cek apakah guru ini sudah absen masuk untuk sesi ini
         const alreadyAttended = attendedSet.has(`${gid}_${entry.sesi_id}`) || attendedSet.has(`${gid}_${entry.id}`);
@@ -142,7 +144,22 @@ export async function GET(request: Request) {
         } catch (e) {}
 
         const waktuBukaStr = subtractMinutes(sesi.jam_mulai, leadMinutes);
-        const subject = `⏰ Presensi Mengajar Dibuka: ${sesi.nama} (${sesi.jam_mulai} WITA) — Yayasan Tahfidz Mu'Allim Wal Arham`;
+        const subject = `Pemberitahuan: Presensi Mengajar Dibuka - ${sesi.nama} (${sesi.jam_mulai} WITA)`;
+
+        const plainText = `Assalamu'alaikum Warahmatullahi Wabarakatuh,
+
+Yth. ${guru.nama},
+
+Presensi mengajar untuk sesi berikut telah resmi DIBUKA:
+- Sesi: ${sesi.nama}
+- Jam Mengajar: ${sesi.jam_mulai} - ${sesi.jam_selesai} WITA
+- Waktu Buka: ${waktuBukaStr} WITA
+
+Silakan lakukan presensi kehadiran melalui tautan berikut:
+${appUrl}/guru/beranda
+
+Jazakumullah Khairan Katsiran.
+Yayasan Tahfidz Mu'Allim Wal Arham Makassar`;
 
         const htmlTemplate = `<!DOCTYPE html>
 <html lang="id">
@@ -162,21 +179,25 @@ export async function GET(request: Request) {
             </td>
           </tr>
           <tr>
-            <td style="padding: 30px 26px;">
+            <td style="padding: 28px 24px;">
               <p style="color: #0f172a; font-size: 15px; font-weight: 700; margin: 0 0 10px;">Assalamu'alaikum Warahmatullahi Wabarakatuh,</p>
-              <p style="color: #334155; font-size: 13.5px; line-height: 1.6; margin: 0 0 20px;">
-                Yth. <strong>${guru.nama}</strong>, jendela presensi absensi mengajar untuk sesi <strong>${sesi.nama}</strong> telah resmi dibuka sejak pukul <strong>${waktuBukaStr} WITA</strong>.
+              <p style="color: #334155; font-size: 13.5px; line-height: 1.6; margin: 0 0 18px;">
+                Yth. <strong>${guru.nama}</strong>, kami menginformasikan bahwa presensi mengajar untuk sesi <strong>${sesi.nama}</strong> pada hari ini telah dibuka sejak pukul <strong>${waktuBukaStr} WITA</strong>.
               </p>
-              <div style="background-color: #f0fdf4; border: 1.5px solid #86efac; border-radius: 12px; padding: 18px; margin-bottom: 24px;">
-                <div style="font-size: 11px; color: #15803d; font-weight: 700; text-transform: uppercase;">Sesi Mengajar Aktif</div>
-                <div style="font-size: 18px; font-weight: 800; color: #166534; margin: 4px 0;">${sesi.nama} (${sesi.deskripsi || 'Sesi Yayasan'})</div>
-                <div style="font-size: 13px; color: #0f172a; font-weight: 700; margin-top: 8px;">⏰ Jam: ${sesi.jam_mulai} – ${sesi.jam_selesai} WITA</div>
+              <div style="background-color: #f0fdf4; border: 1.5px solid #86efac; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+                <div style="font-size: 11px; color: #15803d; font-weight: 700; text-transform: uppercase;">Detail Jadwal Mengajar</div>
+                <div style="font-size: 16px; font-weight: 800; color: #166534; margin: 4px 0 2px;">${sesi.nama}</div>
+                <div style="font-size: 13px; color: #334155;">Pukul ${sesi.jam_mulai} &ndash; ${sesi.jam_selesai} WITA</div>
               </div>
-              <div style="text-align: center; margin-bottom: 20px;">
-                <a href="${appUrl}/guru/beranda" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #1B6B4A 0%, #15803D 100%); color: #ffffff; font-size: 14px; font-weight: 800; text-decoration: none; padding: 14px 30px; border-radius: 10px; box-shadow: 0 4px 14px rgba(27, 107, 74, 0.35);">
-                  📍 Buka Aplikasi &amp; Lakukan Presensi
-                </a>
-              </div>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td align="center">
+                    <a href="${appUrl}/guru/beranda" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #1B6B4A 0%, #15803D 100%); color: #ffffff; font-size: 14px; font-weight: 800; text-decoration: none; padding: 13px 30px; border-radius: 10px; box-shadow: 0 4px 14px rgba(27,107,74,0.3);">
+                      Buka Aplikasi Presensi &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
         </table>
@@ -191,8 +212,14 @@ export async function GET(request: Request) {
             await transporter.sendMail({
               from: emailFrom,
               to: guru.email,
+              replyTo: smtpUser,
               subject,
+              text: plainText,
               html: htmlTemplate,
+              headers: {
+                'X-Priority': '3',
+                'X-Mailer': 'SIPETA Yayasan Tahfidz Mu\'Allim Wal Arham',
+              },
             });
             emailsSent.push({ guru: guru.nama, email: guru.email, sesi: sesi.nama });
           } catch (err) {

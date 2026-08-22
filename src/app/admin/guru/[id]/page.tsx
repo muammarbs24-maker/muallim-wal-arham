@@ -351,15 +351,44 @@ export default function AdminGuruDetailPage() {
   const handleConfirmDelete = async () => {
     setIsProcessingAction(true);
 
-    const filtered = mockGuru.filter((g) => g.id !== guru.id && g.email !== guru.email);
+    const deletedId = guru?.id;
+    const deletedEmail = guru?.email;
+
+    const filtered = mockGuru.filter((g) => g.id !== deletedId && g.email !== deletedEmail);
     mockGuru.length = 0;
     mockGuru.push(...filtered);
     savePersistedGuru(filtered);
 
+    // Clear local session if matches
+    if (typeof window !== 'undefined') {
+      const currentSavedId = localStorage.getItem('logged_in_guru_id');
+      const currentSavedEmail = localStorage.getItem('logged_in_guru_email');
+      if (currentSavedId === deletedId || currentSavedEmail === deletedEmail) {
+        localStorage.removeItem('logged_in_guru_id');
+        localStorage.removeItem('logged_in_guru_email');
+        localStorage.removeItem('muallim_guru_user');
+      }
+    }
+
     try {
-      const { deleteGuruSupabase } = await import('@/lib/supabaseClient');
-      await deleteGuruSupabase(guru.id);
-    } catch (e) {}
+      const { deleteGuruSupabase, supabase } = await import('@/lib/supabaseClient');
+      if (deletedId) {
+        await deleteGuruSupabase(deletedId);
+
+        // Bersihkan ID guru dari seluruh jadwal_matrix Supabase
+        const { data: matrixData } = await supabase.from('jadwal_matrix').select('*');
+        if (Array.isArray(matrixData)) {
+          for (const m of matrixData) {
+            if (Array.isArray(m.guru_ids) && m.guru_ids.includes(deletedId)) {
+              const updatedIds = m.guru_ids.filter((gid: string) => gid !== deletedId);
+              await supabase.from('jadwal_matrix').update({ guru_ids: updatedIds }).eq('id', m.id);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error deleting guru and cleaning matrix:', e);
+    }
 
     setIsProcessingAction(false);
     setShowActionModal(false);

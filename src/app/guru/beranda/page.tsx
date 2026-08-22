@@ -7,6 +7,7 @@ import {
   Navigation, RotateCcw, Timer, Plane, Radio, Send
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   formatDateWITA, greetingByTime,
   getNowWITA, getDistanceInMeters,
@@ -37,6 +38,7 @@ interface SesiAttendanceData {
 }
 
 export default function BerandaPage() {
+  const router = useRouter();
   const [currentTime, setCurrentTime] = useState('');
   const [currentDate, setCurrentDate] = useState('');
   const [isProcessing, setIsProcessing] = useState<string | null>(null); // jadwalId yang sedang diproses
@@ -113,9 +115,20 @@ export default function BerandaPage() {
           mockGuru.length = 0;
           mockGuru.push(...gurus);
           const savedId = typeof window !== 'undefined' ? localStorage.getItem('logged_in_guru_id') : null;
-          if (savedId) {
-            const f = gurus.find((g) => g.id === savedId);
-            if (f) setGuruData(f);
+          const savedEmail = typeof window !== 'undefined' ? localStorage.getItem('logged_in_guru_email') : null;
+          
+          let f = gurus.find((g) => (savedId && g.id === savedId) || (savedEmail && g.email.toLowerCase() === savedEmail.toLowerCase()));
+          
+          if (f && f.aktif) {
+            setGuruData(f);
+          } else {
+            // Jika guru sudah dihapus atau tidak aktif, bersihkan session lokal & arahkan ke login
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('logged_in_guru_id');
+              localStorage.removeItem('logged_in_guru_email');
+              localStorage.removeItem('muallim_guru_user');
+              router.replace('/guru');
+            }
           }
         }
       }).catch(() => {});
@@ -347,37 +360,6 @@ export default function BerandaPage() {
     const endMins = timeToMinutes(j.jamSelesai);
     return sess?.isDone || currentMinutes > endMins;
   });
-
-  // Notifikasi otomatis ke email pengajar ketika sesi presensi dibuka
-  useEffect(() => {
-    if (!activeJadwal || !guruData?.email) return;
-
-    const sess = sessionsMap[activeJadwal.id];
-    // Hanya jika belum absen masuk dan belum selesai
-    if (!sess?.jamMasuk && !sess?.isDone) {
-      const todayStr = getTodayStringWITA();
-      const storageKey = `muallim_notif_opened_${todayStr}_${activeJadwal.id}_${guruData.id}`;
-      if (typeof window !== 'undefined') {
-        const alreadySent = localStorage.getItem(storageKey);
-        if (!alreadySent) {
-          localStorage.setItem(storageKey, 'true');
-          import('@/lib/emailService').then(({ sendAbsenOpenedNotificationEmail }) => {
-            const waktuBukaStr = subtractMinutesFromTime(activeJadwal.jamMulai, leadMinutes);
-            sendAbsenOpenedNotificationEmail({
-              guruNama: guruData.nama,
-              guruEmail: guruData.email,
-              sesiNama: activeJadwal.mataPelajaran,
-              mataPelajaran: activeJadwal.catatan || activeJadwal.mataPelajaran,
-              jamMulai: activeJadwal.jamMulai,
-              jamSelesai: activeJadwal.jamSelesai,
-              waktuBuka: `${waktuBukaStr} WITA`,
-              appUrl: 'https://muallim-wal-arham.vercel.app',
-            }).catch(() => {});
-          }).catch(() => {});
-        }
-      }
-    }
-  }, [activeJadwal?.id, guruData?.email, sessionsMap, leadMinutes]);
 
   // Auto-alfa: tandai sesi yang sudah lewat & belum absen masuk sebagai alfa
   useEffect(() => {
