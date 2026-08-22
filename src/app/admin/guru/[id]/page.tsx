@@ -15,7 +15,7 @@ import {
 } from '@/lib/mockData';
 import { getInitials, getStatusLabel, getTodayStringWITA } from '@/lib/utils';
 import { sendTeacherReactivatedEmail } from '@/lib/emailService';
-import type { Guru, AbsensiRecord } from '@/types';
+import type { Guru, AbsensiRecord, AttendanceStatus } from '@/types';
 
 export default function AdminGuruDetailPage() {
   const params = useParams();
@@ -46,6 +46,73 @@ export default function AdminGuruDetailPage() {
   const [deactivateMode, setDeactivateMode] = useState<'rentang' | 'manual'>('manual');
   const [deactivateUntilDate, setDeactivateUntilDate] = useState('');
   const [isProcessingAction, setIsProcessingAction] = useState(false);
+
+  // Edit Riwayat Absensi Modal State
+  const [showEditAbsensiModal, setShowEditAbsensiModal] = useState(false);
+  const [selectedAbsensi, setSelectedAbsensi] = useState<AbsensiRecord | null>(null);
+  const [editAbsensiForm, setEditAbsensiForm] = useState<{ status: AttendanceStatus; keterangan: string }>({
+    status: 'izin',
+    keterangan: '',
+  });
+  const [isSavingAbsensi, setIsSavingAbsensi] = useState(false);
+
+  const handleOpenEditAbsensi = (record: AbsensiRecord) => {
+    setSelectedAbsensi(record);
+    // Jika record berstatus alfa, default pilihan ganti adalah izin
+    setEditAbsensiForm({
+      status: record.status === 'alfa' ? 'izin' : record.status,
+      keterangan: record.keterangan || '',
+    });
+    setShowEditAbsensiModal(true);
+  };
+
+  const handleSaveEditAbsensi = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAbsensi || !guru) return;
+
+    if (selectedAbsensi.status === 'alfa' && !editAbsensiForm.keterangan.trim()) {
+      alert('Mohon tuliskan alasan / keterangan izin atau sakit.');
+      return;
+    }
+
+    setIsSavingAbsensi(true);
+
+    const updatedRecord: AbsensiRecord = {
+      ...selectedAbsensi,
+      status: editAbsensiForm.status,
+      keterangan: editAbsensiForm.keterangan.trim(),
+    };
+
+    // Update state absensi guru lokal
+    const updatedGuruAbs = absensiGuru.map((a) => (a.id === selectedAbsensi.id ? updatedRecord : a));
+    setAbsensiGuru(updatedGuruAbs);
+
+    // Update global mockAbsensi
+    const idx = mockAbsensi.findIndex((a) => a.id === selectedAbsensi.id);
+    if (idx !== -1) {
+      mockAbsensi[idx] = updatedRecord;
+    } else {
+      mockAbsensi.unshift(updatedRecord);
+    }
+
+    // Persist to localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('muallim_absensi_list', JSON.stringify(mockAbsensi));
+    }
+
+    // Persist to Supabase
+    try {
+      const { upsertAbsensiSupabase } = await import('@/lib/supabaseClient');
+      await upsertAbsensiSupabase(updatedRecord);
+    } catch (err) {
+      console.error('Error updating absensi to Supabase:', err);
+    }
+
+    setIsSavingAbsensi(false);
+    setShowEditAbsensiModal(false);
+    setToastMessage(`✓ Riwayat absensi tanggal ${new Date(selectedAbsensi.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} berhasil diperbarui!`);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
 
   useEffect(() => {
     if (!idStr) return;
@@ -703,9 +770,20 @@ export default function AdminGuruDetailPage() {
                             Masuk: <strong>{a.jamMasuk ? `${a.jamMasuk} WITA` : '—'}</strong> • Pulang: <strong>{a.jamPulang ? `${a.jamPulang} WITA` : '—'}</strong>
                           </div>
                         </div>
-                        <span className={`badge badge-${statusColors[a.status]}`} style={{ fontSize: 10.5, fontWeight: 700, flexShrink: 0 }}>
-                          {getStatusLabel(a.status)}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span className={`badge badge-${statusColors[a.status]}`} style={{ fontSize: 10.5, fontWeight: 700, flexShrink: 0 }}>
+                            {getStatusLabel(a.status)}
+                          </span>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => handleOpenEditAbsensi(a)}
+                            style={{ padding: '4px 6px', fontSize: 11, color: 'var(--color-primary)' }}
+                            title="Edit Riwayat Absensi"
+                          >
+                            <Edit3 size={13} />
+                          </button>
+                        </div>
                       </div>
 
                       {(a.keterlambatan > 0 || a.keterangan) && (
@@ -748,6 +826,7 @@ export default function AdminGuruDetailPage() {
                     <th>Status</th>
                     <th>Keterlambatan</th>
                     <th>Keterangan</th>
+                    <th style={{ textAlign: 'center', width: 70 }}>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -773,11 +852,22 @@ export default function AdminGuruDetailPage() {
                       <td style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>
                         {a.keterangan || '—'}
                       </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => handleOpenEditAbsensi(a)}
+                          style={{ padding: '4px 8px', color: 'var(--color-primary)' }}
+                          title="Edit Riwayat Absensi"
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   {absensiGuru.length === 0 && (
                     <tr>
-                      <td colSpan={6} style={{ textAlign: 'center', padding: '36px', color: 'var(--color-text-tertiary)' }}>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '36px', color: 'var(--color-text-tertiary)' }}>
                         Belum ada riwayat absensi untuk guru ini.
                       </td>
                     </tr>
@@ -1118,6 +1208,111 @@ export default function AdminGuruDetailPage() {
               </>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* ═════════════════════════════════════════════════════════════
+          MODAL EDIT RIWAYAT ABSENSI (ADMIN)
+          ═════════════════════════════════════════════════════════════ */}
+      {showEditAbsensiModal && selectedAbsensi && (
+        <div className="modal-overlay" onClick={() => setShowEditAbsensiModal(false)}>
+          <div className="modal" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: 'var(--font-size-base)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Edit3 size={18} color="var(--color-primary)" /> Edit Riwayat Absensi
+              </h3>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowEditAbsensiModal(false)}>
+                <X size={16} />
+              </button>
+            </div>
+            <form onSubmit={handleSaveEditAbsensi}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                <div style={{ padding: '10px 12px', background: 'var(--color-surface-2)', borderRadius: 'var(--radius-md)', fontSize: 12 }}>
+                  <div style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                    {guru.nama} ({guru.nip})
+                  </div>
+                  <div style={{ color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                    Tanggal Presensi: <strong>{new Date(selectedAbsensi.tanggal).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</strong>
+                  </div>
+                  <div style={{ color: 'var(--color-text-tertiary)', fontSize: 11, marginTop: 2 }}>
+                    Status Sebelumnya: <span className={`badge badge-${statusColors[selectedAbsensi.status]}`} style={{ fontSize: 10 }}>{getStatusLabel(selectedAbsensi.status)}</span>
+                  </div>
+                </div>
+
+                {/* Notifikasi Aturan Alpa */}
+                {selectedAbsensi.status === 'alfa' && (
+                  <div style={{
+                    padding: '8px 12px',
+                    background: '#FEF3C7',
+                    border: '1px solid #FCD34D',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: 11.5,
+                    color: '#92400E',
+                    lineHeight: 1.4,
+                  }}>
+                    ℹ️ <strong>Ketentuan Perubahan Alpa:</strong> Status Alfa tidak dapat diubah menjadi Hadir. Anda dapat mengalihkannya ke status <strong>Izin</strong> atau <strong>Sakit</strong> dengan mencantumkan alasan.
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 700 }}>Ubah Status Kehadiran *</label>
+                  {selectedAbsensi.status === 'alfa' ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <button
+                        type="button"
+                        className={`btn btn-sm ${editAbsensiForm.status === 'izin' ? 'btn-primary' : 'btn-secondary'}`}
+                        onClick={() => setEditAbsensiForm({ ...editAbsensiForm, status: 'izin' })}
+                        style={{ fontWeight: 700 }}
+                      >
+                        Izin
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn btn-sm ${editAbsensiForm.status === 'sakit' ? 'btn-primary' : 'btn-secondary'}`}
+                        onClick={() => setEditAbsensiForm({ ...editAbsensiForm, status: 'sakit' })}
+                        style={{ fontWeight: 700 }}
+                      >
+                        Sakit
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      className="form-select"
+                      value={editAbsensiForm.status}
+                      onChange={(e) => setEditAbsensiForm({ ...editAbsensiForm, status: e.target.value as AttendanceStatus })}
+                    >
+                      <option value="hadir_tepat_waktu">Hadir Tepat Waktu</option>
+                      <option value="terlambat">Terlambat</option>
+                      <option value="izin">Izin</option>
+                      <option value="sakit">Sakit</option>
+                      <option value="alfa">Alfa</option>
+                    </select>
+                  )}
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 700 }}>Alasan / Keterangan Admin *</label>
+                  <textarea
+                    className="form-input"
+                    rows={3}
+                    placeholder="Tuliskan keterangan / alasan perubahan absensi..."
+                    value={editAbsensiForm.keterangan}
+                    onChange={(e) => setEditAbsensiForm({ ...editAbsensiForm, keterangan: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowEditAbsensiModal(false)}>
+                  Batal
+                </button>
+                <button type="submit" className="btn btn-primary btn-sm" disabled={isSavingAbsensi} style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
+                  <Save size={14} /> {isSavingAbsensi ? 'Menyimpan...' : 'Simpan Perubahan Absensi'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

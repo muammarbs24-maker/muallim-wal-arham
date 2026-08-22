@@ -64,7 +64,12 @@ export default function AdminPerformaPage() {
         skor: hitungSkorKedisiplinan(g.id, currentMonth + 1, currentYear),
         poin: hitungPoinPartisipasi(g.id, currentMonth + 1, currentYear),
       }))
-      .sort((a, b) => b.skor.skor - a.skor.skor);
+      .sort((a, b) => {
+        if (a.skor.hasAttendance && !b.skor.hasAttendance) return -1;
+        if (!a.skor.hasAttendance && b.skor.hasAttendance) return 1;
+        if (b.skor.skor !== a.skor.skor) return b.skor.skor - a.skor.skor;
+        return b.skor.hadirTepatWaktu - a.skor.hadirTepatWaktu;
+      });
   }, [guruList, currentMonth, currentYear]);
 
   const gradeColor = (grade: string) =>

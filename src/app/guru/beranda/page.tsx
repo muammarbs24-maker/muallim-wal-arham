@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   MapPin, Clock, CheckCircle2, AlertCircle, LogIn, LogOut,
   Calendar, ChevronRight, Wifi, Briefcase, Sparkles, Check,
-  Navigation, RotateCcw
+  Navigation, RotateCcw, Timer, Plane, Radio
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -39,14 +39,32 @@ interface SesiAttendanceData {
 export default function BerandaPage() {
   const [currentTime, setCurrentTime] = useState('');
   const [currentDate, setCurrentDate] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [locationState, setLocationState] = useState<LocationState>('idle');
+  const [isProcessing, setIsProcessing] = useState<string | null>(null); // jadwalId yang sedang diproses
+  const [locationStateMap, setLocationStateMap] = useState<Record<string, LocationState>>({}); // per-sesi
   const [distanceFromOffice, setDistanceFromOffice] = useState<number | null>(null);
   const [showSuccess, setShowSuccess] = useState<string | null>(null);
   const [sessionsMap, setSessionsMap] = useState<Record<string, SesiAttendanceData>>({});
   const [guruData, setGuruData] = useState<Guru>(currentGuru);
   const [jadwalList, setJadwalList] = useState<Jadwal[]>([]);
   const [appSettings, setAppSettings] = useState<AppSettings>(mockSettings);
+
+  // GPS Monitoring State
+  const [visitModeMap, setVisitModeMap] = useState<Record<string, boolean>>({}); // visit mode per sesi
+  const [gpsZoneMap, setGpsZoneMap] = useState<Record<string, 'inside' | 'outside' | 'unknown'>>({}); // status zona per sesi
+  const [lastGpsCheckMap, setLastGpsCheckMap] = useState<Record<string, string>>({}); // waktu cek terakhir
+
+  // Refs untuk hindari stale closure di interval GPS
+  const sessionsMapRef = useRef(sessionsMap);
+  const visitModeRef = useRef(visitModeMap);
+  const guruDataRef = useRef(guruData);
+  const appSettingsRef = useRef(appSettings);
+  const todayJadwalRef = useRef<Jadwal[]>([]);
+
+  // Sync refs setiap render
+  sessionsMapRef.current = sessionsMap;
+  visitModeRef.current = visitModeMap;
+  guruDataRef.current = guruData;
+  appSettingsRef.current = appSettings;
 
   const todayStr = getTodayStringWITA();
   const hariIni = getDayOfWeekWITA();
@@ -234,17 +252,17 @@ export default function BerandaPage() {
     });
   };
 
-  // Manual check user GPS position
-  const handleCheckLocation = async () => {
+  // Cek lokasi GPS per-sesi
+  const handleCheckLocation = async (jadwalId: string) => {
     if (isProcessing) return;
-    setIsProcessing(true);
-    setLocationState('checking');
+    setIsProcessing(jadwalId);
+    setLocationStateMap((prev) => ({ ...prev, [jadwalId]: 'checking' }));
     setShowError(null);
 
     const gps = await getGpsPosition();
     if (!gps) {
-      setIsProcessing(false);
-      setLocationState('invalid');
+      setIsProcessing(null);
+      setLocationStateMap((prev) => ({ ...prev, [jadwalId]: 'invalid' }));
       setDistanceFromOffice(null);
       setShowError('❌ Sinyal GPS tidak terdeteksi. Harap aktifkan izin lokasi (GPS) pada peramban/perangkat Anda.');
       setTimeout(() => setShowError(null), 5000);
@@ -257,11 +275,11 @@ export default function BerandaPage() {
     setDistanceFromOffice(dist);
     const allowed = appSettings.radius || 100;
 
-    setIsProcessing(false);
+    setIsProcessing(null);
     if (dist <= allowed) {
-      setLocationState('valid');
+      setLocationStateMap((prev) => ({ ...prev, [jadwalId]: 'valid' }));
     } else {
-      setLocationState('invalid');
+      setLocationStateMap((prev) => ({ ...prev, [jadwalId]: 'invalid' }));
     }
   };
 
@@ -269,8 +287,9 @@ export default function BerandaPage() {
   const currentMinutes = currentTime ? timeToMinutes(currentTime) : getCurrentMinutesWITA();
   const leadMinutes = appSettings.waktuBukaSebelumJadwal || 60;
 
-  // 1. Sesi Aktif: Jendela absensi sudah terbuka (sesuai setting admin), BELUM selesai, dan belum lewat batas sesi (kecuali sudah absen masuk)
-  const activeJadwal = todayJadwal.find((j) => {
+  // 1. SEMUA Sesi Aktif (bisa lebih dari 1 bersamaan)
+  // Sesi aktif = jendela sudah buka DAN belum selesai, atau sudah absen masuk tapi belum pulang
+  const activeJadwalList = todayJadwal.filter((j) => {
     const sess = sessionsMap[j.id];
     const isDone = sess?.isDone || false;
     const isOpen = isSessionWindowOpen(j.jamMulai, leadMinutes, currentMinutes);
@@ -284,6 +303,8 @@ export default function BerandaPage() {
     return !isDone && isOpen && !isPast;
   });
 
+  // Backward compat: activeJadwal = sesi aktif pertama (untuk logika lain yang masih butuh)
+  const activeJadwal = activeJadwalList[0] || null;
   const activeSessionData = activeJadwal ? sessionsMap[activeJadwal.id] : null;
 
   // 2. Sesi Mendatang: Belum mencapai jam buka dan belum lewat
@@ -352,16 +373,267 @@ export default function BerandaPage() {
     }
   }, [activeJadwal?.id, guruData?.email, sessionsMap, leadMinutes]);
 
+  // Auto-alfa: tandai sesi yang sudah lewat & belum absen masuk sebagai alfa
+  useEffect(() => {
+    if (todayJadwal.length === 0 || !guruData?.id) return;
+
+    const alfaTargets = todayJadwal.filter((j) => {
+      const sess = sessionsMap[j.id];
+      const endMins = timeToMinutes(j.jamSelesai);
+      // Sudah lewat jam selesai, belum absen masuk sama sekali, belum isDone
+      return currentMinutes > endMins && !sess?.jamMasuk && !sess?.isDone;
+    });
+
+    if (alfaTargets.length === 0) return;
+
+    // Buat record alfa untuk setiap sesi yang terlewat
+    const alfaRecordsToCreate: AbsensiRecord[] = alfaTargets
+      .filter((j) => {
+        const recordId = `abs-${todayStr}-${j.id}-${guruData.id}`;
+        return !mockAbsensi.find((a) => a.id === recordId);
+      })
+      .map((j) => ({
+        id: `abs-${todayStr}-${j.id}-${guruData.id}`,
+        guruId: guruData.id,
+        guruNama: guruData.nama,
+        tanggal: todayStr,
+        jamMasuk: null,
+        jamPulang: null,
+        status: 'alfa' as const,
+        keterlambatan: 0,
+        lokasiValid: false,
+        keterangan: `Alfa otomatis — sesi ${j.mataPelajaran} (${j.jamMulai}–${j.jamSelesai} WITA) tidak dihadiri`,
+        dibuatPada: new Date().toISOString(),
+      }));
+
+    if (alfaRecordsToCreate.length === 0) return;
+
+    const updatedAbsensi = [...mockAbsensi];
+    alfaRecordsToCreate.forEach((rec) => {
+      const idx = updatedAbsensi.findIndex((a) => a.id === rec.id);
+      if (idx < 0) updatedAbsensi.unshift(rec);
+    });
+    mockAbsensi.length = 0;
+    mockAbsensi.push(...updatedAbsensi);
+    savePersistedAbsensi(updatedAbsensi);
+
+    // Tandai di sessionsMap agar tidak diproses ulang
+    const nextMap = { ...sessionsMap };
+    alfaRecordsToCreate.forEach((rec) => {
+      const j = alfaTargets.find((x) => rec.id.includes(x.id));
+      if (j) {
+        nextMap[j.id] = {
+          jadwalId: j.id,
+          mataPelajaran: j.mataPelajaran,
+          jamMulai: j.jamMulai,
+          jamSelesai: j.jamSelesai,
+          kelas: j.kelas,
+          jamMasuk: null,
+          jamPulang: null,
+          status: 'alfa',
+          isDone: true, // Dianggap selesai (alfa)
+        };
+      }
+    });
+    setSessionsMap(nextMap);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`muallim_session_absensi_${todayStr}_${guruData.id}`, JSON.stringify(nextMap));
+    }
+
+    // Simpan ke Supabase
+    import('@/lib/supabaseClient').then(({ upsertAbsensiSupabase }) => {
+      alfaRecordsToCreate.forEach((rec) => upsertAbsensiSupabase(rec).catch(() => {}));
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMinutes, todayJadwal.length, guruData?.id]);
+
+  // Sync todayJadwalRef setelah todayJadwal selesai dihitung
+  // (dipakai di GPS interval yang closed over ref)
+  useEffect(() => {
+    todayJadwalRef.current = todayJadwal;
+  }, [todayJadwal]);
+
+  // ── Absen Pulang Otomatis (tanpa GPS manual) ────────────────────────────
+  // Dipanggil oleh: (1) GPS meninggalkan zona, (2) jam pelajaran selesai
+  const handleAbsenPulangAuto = useCallback(async (
+    jadwal: Jadwal,
+    reason: string,
+    autoJamPulang?: string
+  ) => {
+    const currentSess = sessionsMapRef.current[jadwal.id];
+    if (!currentSess?.jamMasuk || currentSess?.isDone) return;
+
+    const now = getNowWITA();
+    const jamPulang = autoJamPulang || formatTimeWITA(now);
+
+    const updatedSesi: SesiAttendanceData = {
+      jadwalId: jadwal.id,
+      mataPelajaran: jadwal.mataPelajaran,
+      jamMulai: jadwal.jamMulai,
+      jamSelesai: jadwal.jamSelesai,
+      kelas: jadwal.kelas,
+      jamMasuk: currentSess.jamMasuk,
+      jamPulang,
+      status: currentSess.status,
+      isDone: true,
+    };
+
+    const nextMap = { ...sessionsMapRef.current, [jadwal.id]: updatedSesi };
+    sessionsMapRef.current = nextMap;
+    setSessionsMap(nextMap);
+    if (typeof window !== 'undefined') {
+      const todayStr = getTodayStringWITA();
+      localStorage.setItem(`muallim_session_absensi_${todayStr}_${guruDataRef.current.id}`, JSON.stringify(nextMap));
+    }
+
+    const todayStr = getTodayStringWITA();
+    const recordId = `abs-${todayStr}-${jadwal.id}-${guruDataRef.current.id}`;
+    const existing = mockAbsensi.find((a) => a.id === recordId);
+    let updatedList = [...mockAbsensi];
+    let recordToSave: AbsensiRecord;
+
+    if (existing) {
+      existing.jamPulang = jamPulang;
+      existing.keterangan = reason;
+      recordToSave = { ...existing };
+    } else {
+      recordToSave = {
+        id: recordId,
+        guruId: guruDataRef.current.id,
+        guruNama: guruDataRef.current.nama,
+        tanggal: todayStr,
+        jamMasuk: currentSess.jamMasuk,
+        jamPulang,
+        status: currentSess.status,
+        keterlambatan: 0,
+        lokasiValid: true,
+        keterangan: reason,
+        dibuatPada: now.toISOString(),
+      };
+      updatedList.unshift(recordToSave);
+    }
+    savePersistedAbsensi(updatedList);
+
+    try {
+      const { upsertAbsensiSupabase } = await import('@/lib/supabaseClient');
+      await upsertAbsensiSupabase(recordToSave);
+    } catch (e) {}
+
+    setShowSuccess(`✓ ${reason} — Absen Pulang: ${jamPulang} WITA.`);
+    setTimeout(() => setShowSuccess(null), 5000);
+  }, []);
+
+  // ── Auto Absen Pulang saat jam pelajaran selesai ─────────────────────────
+  useEffect(() => {
+    const sessionsWithMasuk = todayJadwal.filter((j) => {
+      const sess = sessionsMap[j.id];
+      const endMins = timeToMinutes(j.jamSelesai);
+      return sess?.jamMasuk && !sess?.isDone && currentMinutes > endMins;
+    });
+
+    sessionsWithMasuk.forEach((jadwal) => {
+      handleAbsenPulangAuto(
+        jadwal,
+        `Absen pulang otomatis — jam pelajaran ${jadwal.mataPelajaran} selesai pukul ${jadwal.jamSelesai} WITA`,
+        jadwal.jamSelesai // gunakan jam selesai sebagai jam pulang
+      );
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMinutes]);
+
+  // ── GPS Background Monitor ───────────────────────────────────────────────
+  // Mulai berjalan setelah absen masuk, cek posisi setiap 2 menit
+  useEffect(() => {
+    const hasActiveCheckedInSession = todayJadwal.some((j) => {
+      const sess = sessionsMap[j.id];
+      return sess?.jamMasuk && !sess?.isDone;
+    });
+
+    if (!hasActiveCheckedInSession) return;
+
+    const intervalId = setInterval(async () => {
+      if (typeof window === 'undefined' || !navigator.geolocation) return;
+
+      const gps = await new Promise<{ lat: number; lng: number } | null>((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          () => resolve(null),
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+        );
+      });
+
+      if (!gps) return;
+
+      const settings = appSettingsRef.current;
+      const dist = Math.round(getDistanceInMeters(gps.lat, gps.lng, settings.latitude, settings.longitude));
+      const allowed = settings.radius || 100;
+      const checkTimeStr = formatTimeWITA(getNowWITA());
+
+      const activeSessions = todayJadwalRef.current.filter((j) => {
+        const sess = sessionsMapRef.current[j.id];
+        return sess?.jamMasuk && !sess?.isDone;
+      });
+
+      const newZoneMap: Record<string, 'inside' | 'outside' | 'unknown'> = {};
+      const newCheckMap: Record<string, string> = {};
+
+      for (const jadwal of activeSessions) {
+        newCheckMap[jadwal.id] = checkTimeStr;
+
+        if (dist <= allowed) {
+          newZoneMap[jadwal.id] = 'inside';
+        } else {
+          newZoneMap[jadwal.id] = 'outside';
+          // Auto absen pulang hanya jika TIDAK dalam visit mode
+          if (!visitModeRef.current[jadwal.id]) {
+            handleAbsenPulangAuto(
+              jadwal,
+              `Absen pulang otomatis — meninggalkan area absensi (terdeteksi ${dist}m dari yayasan)`
+            );
+          }
+        }
+      }
+
+      setGpsZoneMap((prev) => ({ ...prev, ...newZoneMap }));
+      setLastGpsCheckMap((prev) => ({ ...prev, ...newCheckMap }));
+    }, 2 * 60 * 1000); // setiap 2 menit
+
+    return () => clearInterval(intervalId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todayJadwal.map(j => `${j.id}:${sessionsMap[j.id]?.jamMasuk}:${sessionsMap[j.id]?.isDone}`).join('|')]);
+
+  // ── Helper: hitung durasi sejak absen masuk ──────────────────────────────
+  const getDuration = (jamMasuk: string | null): string => {
+    if (!jamMasuk || !currentTime) return '—';
+    const masukMins = timeToMinutes(jamMasuk);
+    const nowMins = timeToMinutes(currentTime);
+    const diff = Math.max(0, nowMins - masukMins);
+    const h = Math.floor(diff / 60);
+    const m = diff % 60;
+    if (h > 0) return `${h} jam ${m} menit`;
+    return `${m} menit`;
+  };
+
+  // ── Toggle Visit Mode ────────────────────────────────────────────────────
+  const toggleVisitMode = (jadwalId: string) => {
+    setVisitModeMap((prev) => {
+      const next = { ...prev, [jadwalId]: !prev[jadwalId] };
+      visitModeRef.current = next;
+      return next;
+    });
+  };
+
   // Eksekusi Absen Masuk Sesi - Cepat & Strict Radius Check
+
   const handleAbsenMasuk = async (jadwal: typeof todayJadwal[0]) => {
     if (isProcessing) return;
-    setIsProcessing(true);
-    setLocationState('checking');
+    setIsProcessing(jadwal.id);
+    setLocationStateMap((prev) => ({ ...prev, [jadwal.id]: 'checking' }));
 
     const gps = await getGpsPosition();
     if (!gps) {
-      setIsProcessing(false);
-      setLocationState('invalid');
+      setIsProcessing(null);
+      setLocationStateMap((prev) => ({ ...prev, [jadwal.id]: 'invalid' }));
       setShowError('❌ Lokasi GPS tidak terdeteksi. Harap aktifkan izin lokasi (GPS) pada peramban/perangkat Anda.');
       setTimeout(() => setShowError(null), 5000);
       return;
@@ -374,14 +646,14 @@ export default function BerandaPage() {
     const allowed = appSettings.radius || 100;
 
     if (dist > allowed) {
-      setIsProcessing(false);
-      setLocationState('invalid');
+      setIsProcessing(null);
+      setLocationStateMap((prev) => ({ ...prev, [jadwal.id]: 'invalid' }));
       setShowError(`❌ Absen Ditolak: Anda berada ${dist} meter dari titik yayasan (Maksimal radius: ${allowed} meter). Anda harus berada di area yayasan untuk melakukan absen.`);
       setTimeout(() => setShowError(null), 6000);
       return;
     }
 
-    setLocationState('valid');
+    setLocationStateMap((prev) => ({ ...prev, [jadwal.id]: 'valid' }));
 
     const now = getNowWITA();
     const jamMasuk = now.toLocaleTimeString('id-ID', {
@@ -442,7 +714,9 @@ export default function BerandaPage() {
         await upsertAbsensiSupabase(newRecord);
       } catch (e) {}
 
-      setIsProcessing(false);
+      setIsProcessing(null);
+      // Reset location state sesi ini setelah berhasil absen masuk
+      setLocationStateMap((prev) => ({ ...prev, [jadwal.id]: 'idle' }));
       setShowSuccess(
         status === 'hadir_tepat_waktu'
           ? `✓ Berhasil Absen Masuk: ${jadwal.mataPelajaran} (${jamMasuk} WITA) — Tepat Waktu`
@@ -455,13 +729,13 @@ export default function BerandaPage() {
   // Eksekusi Absen Pulang Sesi - Strict Radius Check
   const handleAbsenPulang = async (jadwal: typeof todayJadwal[0]) => {
     if (isProcessing) return;
-    setIsProcessing(true);
-    setLocationState('checking');
+    setIsProcessing(jadwal.id);
+    setLocationStateMap((prev) => ({ ...prev, [jadwal.id]: 'checking' }));
 
     const gps = await getGpsPosition();
     if (!gps) {
-      setIsProcessing(false);
-      setLocationState('invalid');
+      setIsProcessing(null);
+      setLocationStateMap((prev) => ({ ...prev, [jadwal.id]: 'invalid' }));
       setShowError('❌ Lokasi GPS tidak terdeteksi. Harap aktifkan izin lokasi (GPS) pada peramban/perangkat Anda.');
       setTimeout(() => setShowError(null), 5000);
       return;
@@ -474,14 +748,14 @@ export default function BerandaPage() {
     const allowed = appSettings.radius || 100;
 
     if (dist > allowed) {
-      setIsProcessing(false);
-      setLocationState('invalid');
+      setIsProcessing(null);
+      setLocationStateMap((prev) => ({ ...prev, [jadwal.id]: 'invalid' }));
       setShowError(`❌ Absen Ditolak: Anda berada ${dist} meter dari titik yayasan (Maksimal radius: ${allowed} meter). Anda harus berada di area yayasan untuk melakukan absen pulang.`);
       setTimeout(() => setShowError(null), 6000);
       return;
     }
 
-    setLocationState('valid');
+    setLocationStateMap((prev) => ({ ...prev, [jadwal.id]: 'valid' }));
 
     const now = getNowWITA();
     const jamPulang = formatTimeWITA(now);
@@ -535,7 +809,9 @@ export default function BerandaPage() {
         await upsertAbsensiSupabase(recordToSave);
       } catch (e) {}
 
-      setIsProcessing(false);
+      setIsProcessing(null);
+      // Reset location state sesi ini setelah berhasil absen pulang
+      setLocationStateMap((prev) => ({ ...prev, [jadwal.id]: 'idle' }));
       setShowSuccess(`✓ Berhasil Absen Pulang sesi ${jadwal.mataPelajaran} pukul ${jamPulang} WITA. Jazakallahu Khairan!`);
       setTimeout(() => setShowSuccess(null), 4000);
     }, 150);
@@ -600,71 +876,194 @@ export default function BerandaPage() {
       {/* 2. KONDISI: ADA JADWAL HARI INI */}
       {todayJadwal.length > 0 && (
         <>
-          {/* A. SESI AKTIF (Waktu >= Jam Buka (H-60 mnt) & Belum Absen Pulang) */}
-          {activeJadwal && (
-            <div className="absen-card">
-              {/* Header Sesi Aktif */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-3)' }}>
-                <div>
-                  <span className="badge badge-success" style={{ marginBottom: 6, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
-                    Sesi Absensi Aktif
-                  </span>
-                  <h3 style={{ fontSize: 'var(--font-size-base)', fontWeight: 800 }}>{activeJadwal.mataPelajaran}</h3>
-                  <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', marginTop: 2 }}>
-                    {activeJadwal.catatan && activeJadwal.catatan !== 'Ustadz' && activeJadwal.catatan !== 'Ustadzah' ? `${activeJadwal.catatan}` : ''}
-                    {activeJadwal.catatan && activeJadwal.catatan !== 'Ustadz' && activeJadwal.catatan !== 'Ustadzah' && appSettings.lokasiNama ? ' • ' : ''}
-                    {appSettings.lokasiNama ? `Lokasi: ${appSettings.lokasiNama}` : ''}
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', fontWeight: 600 }}>
-                    Jadwal Mulai
-                  </div>
-                  <div style={{ fontSize: 'var(--font-size-base)', fontWeight: 800, color: 'var(--color-primary)', marginTop: 2 }}>
-                    {activeJadwal.jamMulai} WITA
-                  </div>
-                  <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 2 }}>
-                    Buka sejak {subtractMinutesFromTime(activeJadwal.jamMulai, leadMinutes)} WITA
-                  </div>
-                </div>
-              </div>
+          {/* A. SEMUA SESI AKTIF (masing-masing ditampilkan terpisah) */}
+          {activeJadwalList.map((jadwal) => {
+            const sessionData = sessionsMap[jadwal.id];
+            const locState = locationStateMap[jadwal.id] || 'idle';
+            const isThisProcessing = isProcessing === jadwal.id;
 
-              {/* Status Waktu Masuk jika sudah Absen Masuk */}
-              {activeSessionData?.jamMasuk && (
-                <div style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '10px 14px', background: 'var(--color-surface-2)',
-                  borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-4)',
-                  border: '1px solid var(--color-border-light)'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <CheckCircle2 size={16} color="var(--color-success)" />
+            return (
+            <div key={jadwal.id} className="absen-card">
+              {/* Header Sesi */}
+              {(() => {
+                const isPastSession = currentMinutes > timeToMinutes(jadwal.jamSelesai);
+                const hasMasuk = !!sessionData?.jamMasuk;
+                return (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-3)' }}>
                     <div>
-                      <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700 }}>Tercatat Absen Masuk</div>
-                      <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>
-                        Status: <span style={{ fontWeight: 600, color: activeSessionData.status === 'hadir_tepat_waktu' ? 'var(--color-success)' : 'var(--color-warning)' }}>
-                          {activeSessionData.status === 'hadir_tepat_waktu' ? 'Hadir Tepat Waktu' : 'Terlambat'}
+                      {isPastSession && hasMasuk ? (
+                        <span className="badge" style={{ marginBottom: 6, display: 'inline-flex', alignItems: 'center', gap: 4, background: '#FFF7ED', color: '#C2410C', border: '1px solid #FED7AA' }}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#F97316', display: 'inline-block' }} />
+                          Waktu Selesai — Absen Pulang Diperlukan
                         </span>
+                      ) : (
+                        <span className="badge badge-success" style={{ marginBottom: 6, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+                          Sesi Absensi Aktif
+                        </span>
+                      )}
+                      <h3 style={{ fontSize: 'var(--font-size-base)', fontWeight: 800 }}>{jadwal.mataPelajaran}</h3>
+                      <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', marginTop: 2 }}>
+                        {jadwal.catatan && jadwal.catatan !== 'Ustadz' && jadwal.catatan !== 'Ustadzah' ? `${jadwal.catatan}` : ''}
+                        {jadwal.catatan && jadwal.catatan !== 'Ustadz' && jadwal.catatan !== 'Ustadzah' && appSettings.lokasiNama ? ' • ' : ''}
+                        {appSettings.lokasiNama ? `Lokasi: ${appSettings.lokasiNama}` : ''}
                       </div>
                     </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', fontWeight: 600 }}>
+                        {currentMinutes > timeToMinutes(jadwal.jamSelesai) ? 'Selesai Pukul' : 'Jadwal Mulai'}
+                      </div>
+                      <div style={{ fontSize: 'var(--font-size-base)', fontWeight: 800, color: isPastSession ? '#C2410C' : 'var(--color-primary)', marginTop: 2 }}>
+                        {isPastSession ? jadwal.jamSelesai : jadwal.jamMulai} WITA
+                      </div>
+                      {!isPastSession && (
+                        <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 2 }}>
+                          Buka sejak {subtractMinutesFromTime(jadwal.jamMulai, leadMinutes)} WITA
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 800, color: 'var(--color-success)' }}>
-                    {activeSessionData.jamMasuk} WITA
+                );
+              })()}
+
+              {/* Status Waktu Masuk jika sudah Absen Masuk */}
+              {sessionData?.jamMasuk && (
+                <>
+                  {/* Badge: Tercatat Absen Masuk */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '10px 14px', background: 'var(--color-surface-2)',
+                    borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-2)',
+                    border: '1px solid var(--color-border-light)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <CheckCircle2 size={16} color="var(--color-success)" />
+                      <div>
+                        <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700 }}>Tercatat Absen Masuk</div>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>
+                          Status: <span style={{ fontWeight: 600, color: sessionData.status === 'hadir_tepat_waktu' ? 'var(--color-success)' : 'var(--color-warning)' }}>
+                            {sessionData.status === 'hadir_tepat_waktu' ? 'Hadir Tepat Waktu' : 'Terlambat'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 800, color: 'var(--color-success)' }}>
+                      {sessionData.jamMasuk} WITA
+                    </div>
                   </div>
-                </div>
+
+                  {/* Panel: Durasi + GPS Status + Visit Mode */}
+                  <div style={{
+                    background: 'var(--color-surface-2)',
+                    borderRadius: 'var(--radius-md)',
+                    marginBottom: 'var(--space-3)',
+                    border: '1px solid var(--color-border-light)',
+                    overflow: 'hidden'
+                  }}>
+                    {/* Durasi kehadiran */}
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '8px 14px',
+                      borderBottom: '1px solid var(--color-border-light)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                        <Timer size={13} color="var(--color-primary)" />
+                        <span>Durasi Kehadiran</span>
+                      </div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-primary)' }}>
+                        {getDuration(sessionData.jamMasuk)}
+                      </span>
+                    </div>
+
+                    {/* Status zona GPS */}
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '8px 14px',
+                      borderBottom: '1px solid var(--color-border-light)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                        <Radio size={13} color={gpsZoneMap[jadwal.id] === 'outside' ? '#EF4444' : '#10B981'} />
+                        <span>Status GPS</span>
+                      </div>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700,
+                        color: gpsZoneMap[jadwal.id] === 'outside'
+                          ? (visitModeMap[jadwal.id] ? '#F59E0B' : '#EF4444')
+                          : gpsZoneMap[jadwal.id] === 'inside'
+                          ? '#10B981'
+                          : 'var(--color-text-tertiary)'
+                      }}>
+                        {gpsZoneMap[jadwal.id] === 'inside'
+                          ? '✓ Di dalam zona absensi'
+                          : gpsZoneMap[jadwal.id] === 'outside'
+                          ? visitModeMap[jadwal.id] ? '✈ Di luar zona (Visit Mode)' : '⚠ Di luar zona absensi'
+                          : '— Belum dicek'}
+                      </span>
+                    </div>
+
+                    {/* Waktu cek terakhir */}
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '8px 14px',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                        <Clock size={13} color="var(--color-text-tertiary)" />
+                        <span>Cek GPS Terakhir</span>
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-tertiary)' }}>
+                        {lastGpsCheckMap[jadwal.id] ? `${lastGpsCheckMap[jadwal.id]} WITA` : '— (otomatis setiap 2 mnt)'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Tombol Izin Visit */}
+                  <button
+                    type="button"
+                    onClick={() => toggleVisitMode(jadwal.id)}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      padding: '10px 16px',
+                      borderRadius: 'var(--radius-md)',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      marginBottom: 'var(--space-3)',
+                      cursor: 'pointer',
+                      border: visitModeMap[jadwal.id]
+                        ? '2px solid #D97706'
+                        : '1.5px solid var(--color-border)',
+                      background: visitModeMap[jadwal.id]
+                        ? 'linear-gradient(135deg, #FEF3C7, #FDE68A)'
+                        : 'var(--color-surface)',
+                      color: visitModeMap[jadwal.id] ? '#92400E' : 'var(--color-text-secondary)',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <Plane size={15} />
+                    {visitModeMap[jadwal.id]
+                      ? '✓ Mode Visit Aktif — Klik untuk nonaktifkan'
+                      : 'Izin Visit (Keluar Area Tanpa Absen Pulang)'}
+                  </button>
+                </>
               )}
 
-              {/* Status & Kontrol Lokasi GPS dan Tombol Absen */}
-              {locationState === 'idle' && (
+
+
+              {/* Tombol Absen — state per-sesi */}
+              {locState === 'idle' && (
                 <button
                   type="button"
                   className="absen-btn-main"
-                  onClick={handleCheckLocation}
-                  disabled={isProcessing}
+                  onClick={() => handleCheckLocation(jadwal.id)}
+                  disabled={!!isProcessing}
                   style={{
                     cursor: 'pointer',
-                    background: 'linear-gradient(135deg, #1B6B4A, #14532D)',
+                    background: sessionData?.jamMasuk
+                      ? 'linear-gradient(135deg, #EA580C, #C2410C)'
+                      : 'linear-gradient(135deg, #1B6B4A, #14532D)',
                     color: 'white',
                     display: 'flex',
                     alignItems: 'center',
@@ -674,115 +1073,57 @@ export default function BerandaPage() {
                     borderRadius: 'var(--radius-md)',
                     fontWeight: 800,
                     width: '100%',
-                    boxShadow: '0 4px 14px rgba(27, 107, 74, 0.25)',
+                    boxShadow: sessionData?.jamMasuk
+                      ? '0 4px 14px rgba(234, 88, 12, 0.25)'
+                      : '0 4px 14px rgba(27, 107, 74, 0.25)',
                     border: 'none'
                   }}
                 >
-                  <MapPin size={20} /> Cek Lokasi Absensi ({activeJadwal.mataPelajaran})
+                  {sessionData?.jamMasuk ? (
+                    <><LogOut size={20} /> Absen Pulang — {jadwal.mataPelajaran}</>
+                  ) : (
+                    <><MapPin size={20} /> Cek Lokasi Absensi ({jadwal.mataPelajaran})</>
+                  )}
                 </button>
               )}
 
-              {locationState === 'checking' && (
-                <button
-                  type="button"
-                  className="absen-btn-main"
-                  disabled
-                  style={{
-                    cursor: 'not-allowed',
-                    background: '#6B7280',
-                    color: 'white',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    padding: '14px 20px',
-                    borderRadius: 'var(--radius-md)',
-                    fontWeight: 800,
-                    width: '100%',
-                    border: 'none'
-                  }}
+              {locState === 'checking' && (
+                <button type="button" className="absen-btn-main" disabled
+                  style={{ cursor: 'not-allowed', background: '#6B7280', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 20px', borderRadius: 'var(--radius-md)', fontWeight: 800, width: '100%', border: 'none' }}
                 >
                   <span className="animate-spin"><Clock size={18} /></span> Memeriksa Koordinat GPS...
                 </button>
               )}
 
-              {locationState === 'invalid' && (
-                <div style={{
-                  padding: '16px',
-                  background: '#FEF2F2',
-                  border: '1.5px solid #FCA5A5',
-                  borderRadius: 'var(--radius-lg)',
-                  marginBottom: 'var(--space-3)'
-                }}>
+              {locState === 'invalid' && (
+                <div style={{ padding: '16px', background: '#FEF2F2', border: '1.5px solid #FCA5A5', borderRadius: 'var(--radius-lg)', marginBottom: 'var(--space-3)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#991B1B', fontWeight: 800, fontSize: 14 }}>
                     <AlertCircle size={18} color="#DC2626" /> Di Luar Jangkauan Absensi
                   </div>
                   <p style={{ fontSize: 12.5, color: '#7F1D1D', marginTop: 6, lineHeight: 1.5 }}>
-                    Anda terdeteksi berada <strong>{distanceFromOffice !== null ? `${distanceFromOffice} meter` : 'jauh'}</strong> dari titik lokasi yayasan (Maksimal radius absensi: <strong>{appSettings.radius || 100} meter</strong>). Silakan menuju lokasi yayasan untuk melakukan absensi.
+                    Anda terdeteksi berada <strong>{distanceFromOffice !== null ? `${distanceFromOffice} meter` : 'jauh'}</strong> dari titik lokasi yayasan
+                    (Maksimal radius: <strong>{appSettings.radius || 100} meter</strong>).
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
                     <a
                       href={`https://www.google.com/maps/dir/?api=1&destination=${appSettings.latitude},${appSettings.longitude}&travelmode=driving`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 8,
-                        padding: '12px 16px',
-                        borderRadius: 'var(--radius-md)',
-                        fontWeight: 800,
-                        fontSize: 13,
-                        textDecoration: 'none',
-                        background: 'linear-gradient(135deg, #0284C7, #0369A1)',
-                        color: '#ffffff',
-                        boxShadow: '0 4px 12px rgba(2, 132, 199, 0.25)',
-                        border: 'none'
-                      }}
+                      target="_blank" rel="noopener noreferrer"
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 16px', borderRadius: 'var(--radius-md)', fontWeight: 800, fontSize: 13, textDecoration: 'none', background: 'linear-gradient(135deg, #0284C7, #0369A1)', color: '#ffffff', border: 'none' }}
                     >
                       <Navigation size={17} /> Menuju Lokasi Absen (Buka Rute Maps)
                     </a>
-
-                    <button
-                      type="button"
-                      onClick={handleCheckLocation}
-                      disabled={isProcessing}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 6,
-                        padding: '10px 16px',
-                        borderRadius: 'var(--radius-md)',
-                        fontWeight: 700,
-                        fontSize: 12.5,
-                        background: '#ffffff',
-                        color: '#374151',
-                        border: '1px solid #D1D5DB',
-                        cursor: 'pointer'
-                      }}
+                    <button type="button" onClick={() => handleCheckLocation(jadwal.id)} disabled={!!isProcessing}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 16px', borderRadius: 'var(--radius-md)', fontWeight: 700, fontSize: 12.5, background: '#ffffff', color: '#374151', border: '1px solid #D1D5DB', cursor: 'pointer' }}
                     >
-                      <RotateCcw size={15} /> Cek Lokasi Absensi Lagi
+                      <RotateCcw size={15} /> Cek Lokasi Lagi
                     </button>
                   </div>
                 </div>
               )}
 
-              {locationState === 'valid' && (
+              {locState === 'valid' && (
                 <div>
-                  <div style={{
-                    padding: '10px 14px',
-                    background: '#F0FDF4',
-                    border: '1px solid #86EFAC',
-                    borderRadius: 'var(--radius-md)',
-                    marginBottom: 'var(--space-3)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    color: '#166534',
-                    fontSize: 12
-                  }}>
+                  <div style={{ padding: '10px 14px', background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-3)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#166534', fontSize: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
                       <CheckCircle2 size={16} color="#16A34A" /> Lokasi Terverifikasi
                     </div>
@@ -791,12 +1132,12 @@ export default function BerandaPage() {
                     </span>
                   </div>
 
-                  {!activeSessionData?.jamMasuk ? (
+                  {!sessionData?.jamMasuk ? (
                     <button
                       type="button"
                       className="absen-btn-main"
-                      onClick={() => handleAbsenMasuk(activeJadwal)}
-                      disabled={isProcessing}
+                      onClick={() => handleAbsenMasuk(jadwal)}
+                      disabled={isThisProcessing}
                       style={{
                         cursor: 'pointer',
                         background: 'linear-gradient(135deg, #16A34A, #15803D)',
@@ -815,22 +1156,18 @@ export default function BerandaPage() {
                         touchAction: 'manipulation',
                       }}
                     >
-                      {isProcessing ? (
-                        <>
-                          <span className="animate-spin"><Clock size={18} /></span> Memproses Absen...
-                        </>
+                      {isThisProcessing ? (
+                        <><span className="animate-spin"><Clock size={18} /></span> Memproses Absen...</>
                       ) : (
-                        <>
-                          <LogIn size={20} /> Mulai Absen Masuk ({activeJadwal.jamMulai} WITA)
-                        </>
+                        <><LogIn size={20} /> Mulai Absen Masuk ({jadwal.jamMulai} WITA)</>
                       )}
                     </button>
                   ) : (
                     <button
                       type="button"
                       className="absen-btn-pulang"
-                      onClick={() => handleAbsenPulang(activeJadwal)}
-                      disabled={isProcessing}
+                      onClick={() => handleAbsenPulang(jadwal)}
+                      disabled={isThisProcessing}
                       style={{
                         cursor: 'pointer',
                         background: 'linear-gradient(135deg, #EA580C, #C2410C)',
@@ -849,24 +1186,22 @@ export default function BerandaPage() {
                         touchAction: 'manipulation',
                       }}
                     >
-                      {isProcessing ? (
-                        <>
-                          <span className="animate-spin"><Clock size={18} /></span> Memproses Pulang...
-                        </>
+                      {isThisProcessing ? (
+                        <><span className="animate-spin"><Clock size={18} /></span> Memproses Pulang...</>
                       ) : (
-                        <>
-                          <LogOut size={20} /> Mulai Absen Pulang ({activeJadwal.mataPelajaran})
-                        </>
+                        <><LogOut size={20} /> Absen Pulang — {jadwal.mataPelajaran}</>
                       )}
                     </button>
                   )}
                 </div>
               )}
             </div>
-          )}
+            );
+          })}
+
 
           {/* B. TIDAK ADA SESI AKTIF: JADWAL MENDATANG BELUM BUKA */}
-          {!activeJadwal && upcomingJadwal && (
+          {activeJadwalList.length === 0 && upcomingJadwal && (
             <div className="absen-card" style={{ background: 'var(--color-surface)', padding: 'var(--space-5) var(--space-4)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
                 <Clock size={18} color="var(--color-primary)" />
@@ -912,7 +1247,7 @@ export default function BerandaPage() {
           )}
 
           {/* C. SEMUA JADWAL HARI INI TELAH SELESAI ATAU TERLEWAT */}
-          {!activeJadwal && !upcomingJadwal && allSessionsFinishedOrMissed && (
+          {activeJadwalList.length === 0 && !upcomingJadwal && allSessionsFinishedOrMissed && (
             <div className="absen-card" style={{ background: 'var(--color-surface)', textAlign: 'center', padding: 'var(--space-6) var(--space-4)' }}>
               <div style={{
                 width: 48, height: 48, borderRadius: '50%', background: finishedList.length > 0 ? 'var(--color-success-light)' : 'var(--color-danger-light)',
@@ -1069,7 +1404,11 @@ export default function BerandaPage() {
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                             <h3 style={{ fontSize: 'var(--font-size-base)', fontWeight: 700 }}>{j.mataPelajaran}</h3>
-                            {isDone ? (
+                            {isDone && sess?.status === 'alfa' ? (
+                              <span className="badge badge-danger" style={{ fontSize: 10 }}>
+                                ❌ Alfa (Tidak Hadir)
+                              </span>
+                            ) : isDone ? (
                               <span className="badge badge-success" style={{ fontSize: 10 }}>
                                 ✓ {sess?.status === 'hadir_tepat_waktu' ? 'Hadir Tepat Waktu' : sess?.status === 'terlambat' ? 'Terlambat' : sess?.status === 'izin' ? 'Izin' : sess?.status === 'sakit' ? 'Sakit' : 'Selesai'}
                               </span>
@@ -1171,7 +1510,7 @@ export default function BerandaPage() {
                     </div>
                     <h3 style={{ fontSize: 'var(--font-size-sm)', fontWeight: 700, marginTop: 'var(--space-2)' }}>{k.nama}</h3>
                     <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', marginTop: 2 }}>
-                      {new Date(k.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', timeZone: 'Asia/Makassar' })} • {k.jamMulai} WITA
+                      {new Date(k.tanggalMulai || k.tanggal || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', timeZone: 'Asia/Makassar' })} • {k.jamMulai} WITA
                     </p>
                   </div>
                   <Link href="/guru/kegiatan" className="btn btn-secondary btn-sm" style={{ padding: '6px 10px', fontSize: 11 }}>

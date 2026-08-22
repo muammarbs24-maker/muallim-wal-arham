@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Clock, MapPin, Sun, Sunset, Moon, Info
+  Clock, MapPin, Sun, Sunset, Moon, Info, CheckCircle2, XCircle, AlertCircle, Send, Edit2
 } from 'lucide-react';
 import {
-  currentGuru, mockJadwal, mockJadwalMatrix, mockGuru, mockSesiList,
-  syncMatrixToJadwal, loadPersistedData, mockSettings
+  currentGuru, mockJadwal, mockJadwalMatrix, mockGuru, mockSesiList, mockAbsensi,
+  syncMatrixToJadwal, loadPersistedData, mockSettings, savePersistedAbsensi
 } from '@/lib/mockData';
-import type { DayOfWeek, Jadwal, JadwalSesiEntry, SesiConfig, Guru, AppSettings } from '@/types';
+import { getTodayStringWITA, getDayOfWeekWITA } from '@/lib/utils';
+import type { DayOfWeek, Jadwal, JadwalSesiEntry, SesiConfig, Guru, AppSettings, AbsensiRecord } from '@/types';
 
 const DAYS: DayOfWeek[] = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Ahad'];
 
@@ -24,8 +25,17 @@ export default function JadwalPage() {
   const [schedulesList, setSchedulesList] = useState<Jadwal[]>([]);
   const [matrixList, setMatrixList] = useState<JadwalSesiEntry[]>([]);
   const [sesiList, setSesiList] = useState<SesiConfig[]>([]);
+  const [absensiList, setAbsensiList] = useState<AbsensiRecord[]>([]);
   const [activeGuru, setActiveGuru] = useState<Guru>(currentGuru);
   const [appSettings, setAppSettings] = useState<AppSettings>(mockSettings);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Modal Konfirmasi Izin/Sakit Jadwal Besok
+  const [showIzinModal, setShowIzinModal] = useState(false);
+  const [selectedJadwalBesok, setSelectedJadwalBesok] = useState<Jadwal | null>(null);
+  const [izinType, setIzinType] = useState<'izin' | 'sakit'>('izin');
+  const [alasanIzin, setAlasanIzin] = useState('');
+  const [isSubmittingIzin, setIsSubmittingIzin] = useState(false);
 
   const refreshData = () => {
     loadPersistedData();
@@ -33,6 +43,7 @@ export default function JadwalPage() {
     setSchedulesList([...mockJadwal]);
     setMatrixList([...mockJadwalMatrix]);
     setSesiList([...mockSesiList]);
+    setAbsensiList([...mockAbsensi]);
   };
 
   useEffect(() => {
@@ -53,9 +64,17 @@ export default function JadwalPage() {
           setActiveGuru(found);
         }
       }
+
+      const savedAbs = localStorage.getItem('muallim_absensi_list');
+      if (savedAbs) {
+        try {
+          const parsed = JSON.parse(savedAbs);
+          if (Array.isArray(parsed)) setAbsensiList(parsed);
+        } catch (e) {}
+      }
     }
 
-    import('@/lib/supabaseClient').then(({ getJadwalMatrixSupabase, getSesiListSupabase, getAppSettingsSupabase, getGurusSupabase }) => {
+    import('@/lib/supabaseClient').then(({ getJadwalMatrixSupabase, getSesiListSupabase, getAppSettingsSupabase, getGurusSupabase, getAbsensiSupabase }) => {
       getGurusSupabase().then((gurus) => {
         if (Array.isArray(gurus) && gurus.length > 0) {
           mockGuru.length = 0;
@@ -88,6 +107,14 @@ export default function JadwalPage() {
         }
       }).catch(() => {});
 
+      getAbsensiSupabase().then((data) => {
+        if (Array.isArray(data)) {
+          setAbsensiList(data);
+          mockAbsensi.length = 0;
+          mockAbsensi.push(...data);
+        }
+      }).catch(() => {});
+
       getAppSettingsSupabase().then((settings) => {
         if (settings) {
           setAppSettings(settings);
@@ -97,12 +124,151 @@ export default function JadwalPage() {
     }).catch(() => {});
   }, []);
 
+  // Hitung jadwal besok
+  const daysArr: DayOfWeek[] = ['Ahad', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowDateStr = tomorrow.toISOString().split('T')[0];
+  const tomorrowDayName = daysArr[tomorrow.getDay()] as DayOfWeek;
+
   const mySchedules = schedulesList.filter(
     (j) => (j.guruId === activeGuru.id || j.guruNama === activeGuru.nama || (activeGuru.nama && j.guruNama.toLowerCase() === activeGuru.nama.toLowerCase())) && j.aktif
   );
 
+  const tomorrowSchedules = mySchedules.filter((j) => j.hari === tomorrowDayName);
+
+  // Cek apakah guru sudah mengonfirmasi izin/sakit untuk besok
+  const tomorrowAbsRecord = absensiList.find(
+    (a) => (a.guruId === activeGuru.id || a.guruNama === activeGuru.nama) && a.tanggal === tomorrowDateStr
+  );
+
+  // Handle submit Izin / Sakit Jadwal Besok
+  const handleSaveIzinBesok = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!alasanIzin.trim()) {
+      alert('Mohon tuliskan alasan izin / sakit Anda.');
+      return;
+    }
+
+    setIsSubmittingIzin(true);
+
+    const recordId = tomorrowAbsRecord?.id || `abs-izin-${tomorrowDateStr}-${activeGuru.id}`;
+    const newRecord: AbsensiRecord = {
+      id: recordId,
+      guruId: activeGuru.id,
+      guruNama: activeGuru.nama,
+      tanggal: tomorrowDateStr,
+      jamMasuk: null,
+      jamPulang: null,
+      status: izinType,
+      keterlambatan: 0,
+      lokasiValid: true,
+      keterangan: `Konfirmasi ${izinType === 'izin' ? 'Izin' : 'Sakit'}: ${alasanIzin.trim()}`,
+      dibuatPada: new Date().toISOString(),
+    };
+
+    const updated = absensiList.filter((a) => a.id !== recordId);
+    updated.unshift(newRecord);
+    setAbsensiList(updated);
+    mockAbsensi.length = 0;
+    mockAbsensi.push(...updated);
+    savePersistedAbsensi(updated);
+
+    try {
+      const { upsertAbsensiSupabase } = await import('@/lib/supabaseClient');
+      await upsertAbsensiSupabase(newRecord);
+    } catch (err) {}
+
+    setIsSubmittingIzin(false);
+    setShowIzinModal(false);
+    setToastMessage(`✓ Konfirmasi ${izinType === 'izin' ? 'Izin' : 'Sakit'} untuk jadwal besok berhasil dikirim.`);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Handle konfirmasi siap hadir
+  const handleConfirmHadirBesok = () => {
+    setToastMessage(`✓ Terima kasih! Anda telah mengonfirmasi kehadiran untuk jadwal besok (${tomorrowDayName}).`);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
   return (
     <>
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="toast-container" style={{ position: 'fixed', top: 80, bottom: 'auto', left: '50%', transform: 'translateX(-50%)', zIndex: 9999 }}>
+          <div className="toast toast-success">{toastMessage}</div>
+        </div>
+      )}
+
+      {/* MODAL KONFIRMASI IZIN / SAKIT BESOK */}
+      {showIzinModal && (
+        <div className="modal-overlay" onClick={() => setShowIzinModal(false)}>
+          <div className="modal" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: 'var(--font-size-base)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
+                Konfirmasi Ketidakhadiran Jadwal Besok
+              </h3>
+            </div>
+            <form onSubmit={handleSaveIzinBesok}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                <div style={{ padding: '10px 12px', background: 'var(--color-surface-2)', borderRadius: 'var(--radius-md)', fontSize: 12 }}>
+                  <div style={{ fontWeight: 700, color: 'var(--color-primary)' }}>
+                    Jadwal: {tomorrowDayName}, {new Date(tomorrowDateStr).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </div>
+                  <div style={{ color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                    {tomorrowSchedules.map((s) => s.mataPelajaran).join(', ')}
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 700 }}>Kategori Tidak Hadir</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${izinType === 'izin' ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => setIzinType('izin')}
+                      style={{ fontWeight: 700 }}
+                    >
+                      Izin
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${izinType === 'sakit' ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => setIzinType('sakit')}
+                      style={{ fontWeight: 700 }}
+                    >
+                      Sakit
+                    </button>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 700 }}>Alasan Ketidakhadiran *</label>
+                  <textarea
+                    className="form-input"
+                    rows={3}
+                    placeholder="Contoh: Mengikuti acara keluarga di luar kota / Sakit demam..."
+                    value={alasanIzin}
+                    onChange={(e) => setAlasanIzin(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowIzinModal(false)}>
+                  Batal
+                </button>
+                <button type="submit" className="btn btn-primary btn-sm" disabled={isSubmittingIzin} style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
+                  <Send size={13} /> {isSubmittingIzin ? 'Mengirim...' : 'Kirim Konfirmasi'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="page-header">
         <h1 style={{ fontSize: 'var(--font-size-xl)', fontWeight: 800 }}>Jadwal Mengajar</h1>
@@ -160,6 +326,70 @@ export default function JadwalPage() {
       </div>
 
       <div style={{ padding: 'var(--space-4)' }}>
+        {/* BANNER KONFIRMASI JADWAL BESOK */}
+        {tomorrowSchedules.length > 0 && (
+          <div className="card" style={{
+            marginBottom: 'var(--space-4)',
+            border: '1.5px solid var(--color-primary)',
+            background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-surface) 100%)',
+            padding: 16,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, fontSize: 'var(--font-size-sm)', color: 'var(--color-primary)' }}>
+                  <Clock size={16} /> Jadwal Mengajar Besok ({tomorrowDayName}, {new Date(tomorrowDateStr).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })})
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
+                  Anda memiliki <strong>{tomorrowSchedules.length} sesi mengajar</strong>: {tomorrowSchedules.map((s) => `${s.mataPelajaran} (${s.jamMulai}–${s.jamSelesai})`).join(', ')}.
+                </div>
+              </div>
+
+              {tomorrowAbsRecord && (tomorrowAbsRecord.status === 'izin' || tomorrowAbsRecord.status === 'sakit') ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span className="badge badge-info" style={{ fontWeight: 700, padding: '4px 10px', fontSize: 11 }}>
+                    ✓ {tomorrowAbsRecord.status === 'izin' ? 'Izin' : 'Sakit'} Terkonfirmasi
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => {
+                      setIzinType(tomorrowAbsRecord.status as any);
+                      setAlasanIzin(tomorrowAbsRecord.keterangan.replace(/Konfirmasi (Izin|Sakit): /, ''));
+                      setShowIzinModal(true);
+                    }}
+                    style={{ fontSize: 11, padding: '4px 8px' }}
+                  >
+                    <Edit2 size={12} /> Ubah
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={handleConfirmHadirBesok}
+                    style={{ fontSize: 11, padding: '6px 12px', fontWeight: 700 }}
+                  >
+                    <CheckCircle2 size={13} /> Saya Siap Hadir
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    onClick={() => {
+                      setIzinType('izin');
+                      setAlasanIzin('');
+                      setShowIzinModal(true);
+                    }}
+                    style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)', fontSize: 11, padding: '6px 12px', fontWeight: 700 }}
+                  >
+                    <XCircle size={13} /> Tidak Bisa Hadir
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* TAB 1: JADWAL SAYA */}
         {activeTab === 'saya' && (
           <JadwalSaya

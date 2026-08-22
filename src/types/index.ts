@@ -125,16 +125,23 @@ export interface Kegiatan {
   id: string;
   nama: string;
   deskripsi: string;
-  tanggal: string; // ISO date
-  jamMulai: string;
-  jamSelesai: string;
-  lokasi: string;
+  tanggal?: string; // Legacy ISO date single day
+  hariMulai?: string; // Hari mulai misal 'Senin'
+  tanggalMulai: string; // ISO date YYYY-MM-DD
+  hariSelesai?: string; // Hari selesai misal 'Rabu'
+  tanggalSelesai: string; // ISO date YYYY-MM-DD
+  jamMulai: string; // HH:mm
+  jamSelesai?: string; // HH:mm (opsional)
+  batasPendaftaran: string; // ISO datetime or date YYYY-MM-DD / YYYY-MM-DDTHH:mm
+  lokasi: string; // Nama lokasi (wajib)
+  linkMaps?: string; // Link Google Maps kustom (opsional)
   jenis: ActivityType;
   wajib: boolean;
   poinPeserta: number;
   poinPanitia: number;
   poinKoordinator: number;
   status: 'berlangsung' | 'mendatang' | 'selesai';
+  absensiAktif?: boolean; // Admin manual override atau otomatis 30 menit sebelum mulai
 }
 
 export interface KegiatanPartisipasi {
@@ -144,9 +151,15 @@ export interface KegiatanPartisipasi {
   guruNama: string;
   respons: ParticipationResponse;
   responsDibuatPada: string;
-  jenisPartisipasi: ActivityParticipationType | null;
-  hadirVerifikasi: boolean | null; // null = belum diverifikasi
+  jenisPartisipasi: ActivityParticipationType | null; // 'peserta' | 'panitia' | 'koordinator'
+  alasan?: string;
+  waktuAbsen?: string | null; // ISO datetime saat guru absen di lokasi
+  latitudeAbsen?: number | null; // Koordinat latitude guru saat presensi
+  longitudeAbsen?: number | null; // Koordinat longitude guru saat presensi
+  lokasiAbsenNama?: string | null; // Nama area/keterangan GPS
+  hadirVerifikasi: boolean | null; // true = Hadir Terverifikasi, false = Tidak Hadir / Ditolak, null = Belum Diverifikasi
   poinDiterima: number;
+  diverifikasiPada?: string | null;
 }
 
 // ============================================================

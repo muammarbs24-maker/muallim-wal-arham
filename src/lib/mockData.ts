@@ -252,6 +252,28 @@ export function loadPersistedData(): void {
       } catch (e) {}
     }
 
+    const savedKegiatan = localStorage.getItem('muallim_kegiatan_list');
+    if (savedKegiatan) {
+      try {
+        const parsed = JSON.parse(savedKegiatan);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          mockKegiatan.length = 0;
+          mockKegiatan.push(...parsed);
+        }
+      } catch (e) {}
+    }
+
+    const savedPartisipasi = localStorage.getItem('muallim_partisipasi_list');
+    if (savedPartisipasi) {
+      try {
+        const parsed = JSON.parse(savedPartisipasi);
+        if (Array.isArray(parsed)) {
+          mockPartisipasi.length = 0;
+          mockPartisipasi.push(...parsed);
+        }
+      } catch (e) {}
+    }
+
   } catch (e) {
     console.error('Error loading persisted data:', e);
   }
@@ -389,12 +411,117 @@ export function getJadwalForGuru(guruId: string): Jadwal[] {
 }
 
 // ============================================================
-// 4. DATA KEGIATAN YAYASAN (KOSONG)
+// 4. DATA KEGIATAN YAYASAN (DEFAULT AKTIF & SAMPLE)
 // ============================================================
 
-export const mockKegiatan: Kegiatan[] = [];
+export const mockKegiatan: Kegiatan[] = [
+  {
+    id: 'kegiatan-pelatihan-tahfidz-2026',
+    nama: "Pelatihan & Standardisasi Guru Al-Qur'an Mu'Allim 2026",
+    deskripsi: "Pelatihan intensif metode pengajaran Tahsin, Tahfidz, dan Manajemen Halaqah Qur'an Yayasan Mu'Allim Wal Arham.",
+    hariMulai: 'Sabtu',
+    tanggalMulai: '2026-08-22',
+    hariSelesai: 'Senin',
+    tanggalSelesai: '2026-08-24',
+    jamMulai: '08:00',
+    jamSelesai: '16:30',
+    batasPendaftaran: '2026-08-24T07:30',
+    lokasi: "Aula Utama Yayasan Tahfidz Mu'Allim Wal Arham, Makassar",
+    linkMaps: '', // Kosong agar menguji pembuatan link maps otomatis sistem
+    jenis: 'Pelatihan',
+    wajib: true,
+    poinPeserta: 10,
+    poinPanitia: 15,
+    poinKoordinator: 20,
+    status: 'berlangsung',
+    absensiAktif: true,
+  },
+];
 
 export const mockPartisipasi: KegiatanPartisipasi[] = [];
+
+export function getGoogleMapsLink(lokasiNama: string, customLink?: string): string {
+  if (customLink && customLink.trim().startsWith('http')) {
+    return customLink.trim();
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lokasiNama.trim())}`;
+}
+
+export function getNamaHari(dateStr: string): string {
+  if (!dateStr) return 'Senin';
+  const days = ['Ahad', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return 'Senin';
+  return days[d.getDay()];
+}
+
+export function isKegiatanAbsensiOpen(kegiatan: Kegiatan): boolean {
+  if (kegiatan.absensiAktif === true) return true;
+  if (kegiatan.status === 'selesai') return false;
+
+  try {
+    const now = new Date();
+    // Start date & time
+    const startStr = `${kegiatan.tanggalMulai}T${kegiatan.jamMulai || '00:00'}:00`;
+    const startDate = new Date(startStr);
+    // Buka 30 menit sebelum kegiatan dimulai
+    const openTime = new Date(startDate.getTime() - 30 * 60 * 1000);
+
+    // End date & time
+    const endStr = kegiatan.jamSelesai
+      ? `${kegiatan.tanggalSelesai}T${kegiatan.jamSelesai}:00`
+      : `${kegiatan.tanggalSelesai}T23:59:59`;
+    const endDate = new Date(endStr);
+
+    return now >= openTime && now <= endDate;
+  } catch (e) {
+    return kegiatan.status === 'berlangsung';
+  }
+}
+
+export function isKegiatanEnded(kegiatan: Kegiatan): boolean {
+  if (kegiatan.status === 'selesai') return true;
+  try {
+    const now = new Date();
+    const endStr = kegiatan.jamSelesai
+      ? `${kegiatan.tanggalSelesai}T${kegiatan.jamSelesai}:00`
+      : `${kegiatan.tanggalSelesai}T23:59:59`;
+    const endDate = new Date(endStr);
+    return now > endDate;
+  } catch (e) {
+    return false;
+  }
+}
+
+export function savePersistedKegiatan(list: Kegiatan[]): void {
+  mockKegiatan.length = 0;
+  mockKegiatan.push(...list);
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('muallim_kegiatan_list', JSON.stringify(list));
+      import('./supabaseClient').then(({ saveKegiatanListSupabase }) => {
+        saveKegiatanListSupabase(list);
+      }).catch(() => {});
+    } catch (e) {
+      console.error('Error saving kegiatan list:', e);
+    }
+  }
+}
+
+export function savePersistedPartisipasi(list: KegiatanPartisipasi[]): void {
+  mockPartisipasi.length = 0;
+  mockPartisipasi.push(...list);
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('muallim_partisipasi_list', JSON.stringify(list));
+      import('./supabaseClient').then(({ saveKegiatanPartisipasiSupabase }) => {
+        saveKegiatanPartisipasiSupabase(list);
+      }).catch(() => {});
+    } catch (e) {
+      console.error('Error saving partisipasi list:', e);
+    }
+  }
+}
 
 // ============================================================
 // 5. PENGATURAN APLIKASI
@@ -451,8 +578,9 @@ export function hitungSkorKedisiplinan(guruId: string, bulan?: number, tahun?: n
       izin: 0,
       sakit: 0,
       alfa: 0,
-      skor: 100, // Nilai default awal sebelum ada catatan alfa/terlambat di bulan ini
-      grade: 'Sangat Baik',
+      skor: 0, // Belum memiliki riwayat absensi pada bulan ini
+      grade: '—',
+      hasAttendance: false,
       bulan: targetBulan,
       tahun: targetTahun,
     };
@@ -489,6 +617,7 @@ export function hitungSkorKedisiplinan(guruId: string, bulan?: number, tahun?: n
     alfa,
     skor: clampedSkor,
     grade,
+    hasAttendance: true,
     bulan: targetBulan,
     tahun: targetTahun,
   };
@@ -733,4 +862,80 @@ export async function resetAllApplicationDataExceptGurus(): Promise<boolean> {
   }
 
   return true;
+}
+
+// ============================================================
+// 10. HELPER AUTO-ALPA SINKRONISASI JADWAL TERLEWAT
+// ============================================================
+
+export function checkAndApplyAutoAlfa(
+  gurus: Guru[] = mockGuru,
+  matrix: JadwalSesiEntry[] = mockJadwalMatrix,
+  sesi: SesiConfig[] = mockSesiList,
+  absensi: AbsensiRecord[] = mockAbsensi
+): AbsensiRecord[] {
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const todayStr = now.toISOString().split('T')[0];
+  const daysOfWeek = ['Ahad', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const todayDay = daysOfWeek[now.getDay()];
+
+  let hasNewAlfa = false;
+  const updatedAbsensi = [...absensi];
+
+  // Periksa penugasan guru di jadwal matrix untuk hari ini
+  matrix.forEach((entry) => {
+    if (entry.hari !== todayDay) return;
+    const currentSesi = sesi.find((s) => s.id === entry.sesiId);
+    if (!currentSesi || !entry.guruIds || entry.guruIds.length === 0) return;
+
+    const [endH, endM] = currentSesi.jamSelesai.split(':').map((x) => parseInt(x, 10));
+    const sesiEndMinutes = (endH || 0) * 60 + (endM || 0);
+
+    // Jika waktu saat ini sudah melewati jam selesai sesi mengajar
+    if (currentMinutes >= sesiEndMinutes) {
+      entry.guruIds.forEach((gId) => {
+        const guru = gurus.find((g) => g.id === gId && g.aktif);
+        if (!guru) return;
+
+        // Cek apakah sudah ada catatan absensi guru hari ini
+        const hasAttendanceToday = updatedAbsensi.some(
+          (a) =>
+            (a.guruId === gId || a.guruNama === guru.nama) &&
+            a.tanggal === todayStr &&
+            (a.status === 'hadir_tepat_waktu' ||
+              a.status === 'terlambat' ||
+              a.status === 'izin' ||
+              a.status === 'sakit' ||
+              a.status === 'alfa')
+        );
+
+        if (!hasAttendanceToday) {
+          const autoAlfaRecord: AbsensiRecord = {
+            id: `abs-auto-alfa-${todayStr}-${entry.sesiId}-${gId}`,
+            guruId: gId,
+            guruNama: guru.nama,
+            tanggal: todayStr,
+            jamMasuk: null,
+            jamPulang: null,
+            status: 'alfa',
+            keterlambatan: 0,
+            lokasiValid: false,
+            keterangan: `Otomatis Alpa (Tidak hadir pada ${currentSesi.nama})`,
+            dibuatPada: new Date().toISOString(),
+          };
+          updatedAbsensi.push(autoAlfaRecord);
+          hasNewAlfa = true;
+        }
+      });
+    }
+  });
+
+  if (hasNewAlfa) {
+    mockAbsensi.length = 0;
+    mockAbsensi.push(...updatedAbsensi);
+    savePersistedAbsensi(updatedAbsensi);
+  }
+
+  return updatedAbsensi;
 }

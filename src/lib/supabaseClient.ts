@@ -421,10 +421,85 @@ export async function resetAllDataExceptGurusSupabase(): Promise<boolean> {
     // Delete all attendance records
     await supabase.from('absensi_records').delete().neq('id', '___none___');
     // Delete all schedule matrix records except config rows
-    await supabase.from('jadwal_matrix').delete().neq('id', '___none___').neq('id', '__sesi_config__').neq('id', '__app_settings_extra__');
+    await supabase.from('jadwal_matrix').delete().neq('id', '___none___').neq('id', '__sesi_config__').neq('id', '__app_settings_extra__').neq('id', '__kegiatan_list__').neq('id', '__kegiatan_partisipasi__');
     return true;
   } catch (err) {
     console.error('Error resetAllDataExceptGurusSupabase:', err);
+    return false;
+  }
+}
+
+/**
+ * 6. KEGIATAN & PARTISIPASI SERVICE
+ */
+export async function getKegiatanListSupabase(): Promise<Kegiatan[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from('jadwal_matrix')
+      .select('*')
+      .eq('id', '__kegiatan_list__')
+      .maybeSingle();
+
+    if (error || !data || !data.sesi_id) return null;
+    const parsed = JSON.parse(data.sesi_id);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (err) {
+    console.error('Error getKegiatanListSupabase:', err);
+    return null;
+  }
+}
+
+export async function saveKegiatanListSupabase(list: Kegiatan[]): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('jadwal_matrix')
+      .upsert({
+        id: '__kegiatan_list__',
+        hari: 'Senin',
+        sesi_id: JSON.stringify(list),
+        guru_ids: [],
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+
+    return !error;
+  } catch (err) {
+    console.error('Error saveKegiatanListSupabase:', err);
+    return false;
+  }
+}
+
+export async function getKegiatanPartisipasiSupabase(): Promise<KegiatanPartisipasi[] | null> {
+  try {
+    const { data, error } = await supabase
+      .from('jadwal_matrix')
+      .select('*')
+      .eq('id', '__kegiatan_partisipasi__')
+      .maybeSingle();
+
+    if (error || !data || !data.sesi_id) return null;
+    const parsed = JSON.parse(data.sesi_id);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (err) {
+    console.error('Error getKegiatanPartisipasiSupabase:', err);
+    return null;
+  }
+}
+
+export async function saveKegiatanPartisipasiSupabase(list: KegiatanPartisipasi[]): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('jadwal_matrix')
+      .upsert({
+        id: '__kegiatan_partisipasi__',
+        hari: 'Senin',
+        sesi_id: JSON.stringify(list),
+        guru_ids: [],
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+
+    return !error;
+  } catch (err) {
+    console.error('Error saveKegiatanPartisipasiSupabase:', err);
     return false;
   }
 }

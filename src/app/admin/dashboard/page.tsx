@@ -11,7 +11,10 @@ import {
   CalendarCheck, Activity, Bell, ChevronRight, Calendar,
   TrendingUp, Award, ArrowUpRight,
 } from 'lucide-react';
-import { mockAbsensi, mockGuru, mockJadwal, mockKegiatan, hitungSkorKedisiplinan, loadPersistedData } from '@/lib/mockData';
+import {
+  mockAbsensi, mockGuru, mockJadwal, mockKegiatan, mockJadwalMatrix, mockSesiList,
+  hitungSkorKedisiplinan, loadPersistedData, checkAndApplyAutoAlfa
+} from '@/lib/mockData';
 import { getTodayStringWITA, getStatusLabel, getNowWITA } from '@/lib/utils';
 import type { AttendanceStatus, AbsensiRecord, Guru } from '@/types';
 
@@ -111,20 +114,42 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     refreshData();
 
-    import('@/lib/supabaseClient').then(({ getAbsensiSupabase, getGurusSupabase }) => {
-      getAbsensiSupabase().then((data) => {
-        if (data !== null && data !== undefined) {
-          setAbsensiList(data);
-          mockAbsensi.length = 0;
-          mockAbsensi.push(...data);
-        }
-      }).catch(() => {});
-
-      getGurusSupabase().then((gurus) => {
-        if (gurus && gurus.length > 0) {
-          setGuruList(gurus);
+    import('@/lib/supabaseClient').then(({ getAbsensiSupabase, getGurusSupabase, getJadwalMatrixSupabase, getSesiListSupabase }) => {
+      Promise.all([
+        getAbsensiSupabase(),
+        getGurusSupabase(),
+        getJadwalMatrixSupabase(),
+        getSesiListSupabase()
+      ]).then(([absData, gurusData, matrixData, sesiData]) => {
+        let activeGurus = guruList;
+        if (gurusData && gurusData.length > 0) {
+          setGuruList(gurusData);
           mockGuru.length = 0;
-          mockGuru.push(...gurus);
+          mockGuru.push(...gurusData);
+          activeGurus = gurusData;
+        }
+
+        if (matrixData && matrixData.length > 0) {
+          mockJadwalMatrix.length = 0;
+          mockJadwalMatrix.push(...matrixData);
+        }
+
+        if (sesiData && sesiData.length > 0) {
+          mockSesiList.length = 0;
+          mockSesiList.push(...sesiData);
+        }
+
+        if (absData !== null && absData !== undefined) {
+          // Jalankan auto-alpa untuk sesi mengajar hari ini yang jam selesainya sudah terlewati
+          const updatedWithAutoAlfa = checkAndApplyAutoAlfa(
+            activeGurus,
+            mockJadwalMatrix,
+            mockSesiList,
+            absData
+          );
+          setAbsensiList(updatedWithAutoAlfa);
+          mockAbsensi.length = 0;
+          mockAbsensi.push(...updatedWithAutoAlfa);
         }
       }).catch(() => {});
     }).catch(() => {});
@@ -176,14 +201,20 @@ export default function AdminDashboardPage() {
     });
   }, [absensiList]);
 
-  // Top teachers by skor
+  // Top teachers by skor (Hanya memprioritaskan guru yang sudah memiliki riwayat kehadiran di atas)
   const topGuru = useMemo(() => {
     return (guruList.length > 0 ? guruList : mockGuru)
       .filter((g) => g.aktif)
-      .map((g) => ({ guru: g, skor: hitungSkorKedisiplinan(g.id) }))
-      .sort((a, b) => b.skor.skor - a.skor.skor)
+      .map((g) => ({ guru: g, skor: hitungSkorKedisiplinan(g.id, undefined, undefined, absensiList) }))
+      .sort((a, b) => {
+        // Prioritaskan guru yang sudah memiliki presensi aktif
+        if (a.skor.hasAttendance && !b.skor.hasAttendance) return -1;
+        if (!a.skor.hasAttendance && b.skor.hasAttendance) return 1;
+        if (b.skor.skor !== a.skor.skor) return b.skor.skor - a.skor.skor;
+        return b.skor.hadirTepatWaktu - a.skor.hadirTepatWaktu;
+      })
       .slice(0, 5);
-  }, [guruList]);
+  }, [guruList, absensiList]);
 
   // Teachers not yet checked in
   const belumAbsen = useMemo(() => {
@@ -422,10 +453,21 @@ export default function AdminDashboardPage() {
                     <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)' }}>{guru.jabatan}</div>
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 800, color: gradeColor(skor.grade) }}>
-                      {skor.skor}
-                    </div>
-                    <div style={{ fontSize: 9, color: 'var(--color-text-tertiary)' }}>/ 100</div>
+                    {skor.hasAttendance ? (
+                      <>
+                        <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 800, color: gradeColor(skor.grade) }}>
+                          {skor.skor}
+                        </div>
+                        <div style={{ fontSize: 9, color: 'var(--color-text-tertiary)' }}>/ 100</div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: 'var(--color-text-tertiary)' }}>
+                          —
+                        </div>
+                        <div style={{ fontSize: 9, color: 'var(--color-text-tertiary)' }}>Belum ada data</div>
+                      </>
+                    )}
                   </div>
                 </Link>
               ))}
@@ -501,7 +543,7 @@ export default function AdminDashboardPage() {
                   </div>
                   <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 2 }}>{k.nama}</div>
                   <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)' }}>
-                    {new Date(k.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', timeZone: 'Asia/Makassar' })}
+                    {new Date(k.tanggalMulai || k.tanggal || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', timeZone: 'Asia/Makassar' })}
                     {' • '}
                     {k.jamMulai} WITA
                   </div>
