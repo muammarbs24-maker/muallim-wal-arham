@@ -8,6 +8,7 @@ export async function POST(request: Request) {
       guruEmail,
       previousStatus,
       newStatus = 'tetap',
+      jabatan = 'Ustadz',
       appUrl,
     } = await request.json();
 
@@ -22,6 +23,12 @@ export async function POST(request: Request) {
       );
     }
 
+    const isUstadzah = String(jabatan).toLowerCase().includes('ustadzah') || String(jabatan).toLowerCase().includes('ustazah') || String(guruNama).toLowerCase().includes('ustadzah') || String(guruNama).toLowerCase().includes('ustazah');
+    const sapaan = isUstadzah ? 'Ustadzah' : 'Ustadz';
+    const sapaanNamaLengkap = guruNama.startsWith('Ustadz') || guruNama.startsWith('Ustadzah')
+      ? guruNama
+      : `${sapaan} ${guruNama}`;
+
     const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
     const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
     const smtpUser = process.env.SMTP_USER;
@@ -32,14 +39,14 @@ export async function POST(request: Request) {
 
     const previousStatusLabel = previousStatus === 'honorer' ? 'Honorer' : previousStatus === 'magang' ? 'Magang' : 'Kontrak';
 
-    const subject = `Pemberitahuan Resmi: Pengangkatan Status Guru Tetap - Yayasan Tahfidz Mu'Allim Wal Arham`;
+    const subject = `Pemberitahuan Resmi: Pengangkatan Status Guru Tetap (${sapaanNamaLengkap}) - Yayasan Tahfidz Mu'Allim Wal Arham`;
     const loginLink = `${safeAppUrl}/guru/profil`;
 
     const plainTextContent = `Assalamu'alaikum Warahmatullahi Wabarakatuh,
 
-Yth. ${guruNama},
+Yth. ${sapaanNamaLengkap},
 
-Berdasarkan evaluasi kinerja, dedikasi, serta kontribusi yang telah Ustadz/Ustadzah berikan dalam membina para santri, kami pimpinan Yayasan Tahfidz Mu'Allim Wal Arham mengumumkan bahwa status kepegawaian Anda telah resmi diangkat menjadi:
+Berdasarkan evaluasi kinerja, dedikasi, serta kontribusi yang telah ${sapaan} berikan dalam membina para santri, kami pimpinan Yayasan Tahfidz Mu'Allim Wal Arham mengumumkan bahwa status kepegawaian Anda telah resmi diangkat menjadi:
 
 STATUS BARU: GURU TETAP (Sebelumnya: Guru ${previousStatusLabel})
 

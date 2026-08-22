@@ -124,6 +124,8 @@ export default function AdminGuruPage() {
       nip: newGuru.nip,
       email: newGuru.email,
       password: newGuru.password || authConfig.defaultGuruPassword || 'muallim123',
+      jabatan: newGuru.jabatan,
+      statusKepegawaian: newGuru.statusKepegawaian,
     }).then((res) => {
       console.log('Teacher credentials email status:', res);
     }).catch(() => {});

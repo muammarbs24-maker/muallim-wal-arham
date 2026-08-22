@@ -301,6 +301,7 @@ export default function AdminGuruDetailPage() {
         guruEmail: updatedGuru.email,
         previousStatus: previousStatus,
         newStatus: 'tetap',
+        jabatan: updatedGuru.jabatan,
       }).then((res) => {
         console.log('Status promotion email sent status:', res);
       }).catch((err) => {

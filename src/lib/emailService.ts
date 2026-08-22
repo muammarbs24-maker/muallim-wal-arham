@@ -40,9 +40,19 @@ export interface SendWelcomeEmailParams {
   email: string;
   password: string;
   loginUrl?: string;
+  jabatan?: string;
+  statusKepegawaian?: 'tetap' | 'honorer' | 'magang' | string;
 }
 
-export async function sendTeacherWelcomeEmail({ nama, nip, email, password, loginUrl }: SendWelcomeEmailParams) {
+export async function sendTeacherWelcomeEmail({
+  nama,
+  nip,
+  email,
+  password,
+  loginUrl,
+  jabatan,
+  statusKepegawaian,
+}: SendWelcomeEmailParams) {
   try {
     const res = await fetch('/api/auth/send-welcome-email', {
       method: 'POST',
@@ -53,6 +63,8 @@ export async function sendTeacherWelcomeEmail({ nama, nip, email, password, logi
         email,
         password,
         loginUrl: resolveSafeUrl(loginUrl),
+        jabatan: jabatan || 'Ustadz',
+        statusKepegawaian: statusKepegawaian || 'tetap',
       }),
     });
 
@@ -228,6 +240,7 @@ export interface SendStatusPromotionEmailParams {
   guruEmail: string;
   previousStatus: 'honorer' | 'magang' | string;
   newStatus?: 'tetap' | string;
+  jabatan?: string;
   appUrl?: string;
 }
 
@@ -236,6 +249,7 @@ export async function sendPermanentStatusCongratsEmail({
   guruEmail,
   previousStatus,
   newStatus = 'tetap',
+  jabatan,
   appUrl,
 }: SendStatusPromotionEmailParams) {
   try {
@@ -247,6 +261,7 @@ export async function sendPermanentStatusCongratsEmail({
         guruEmail,
         previousStatus,
         newStatus,
+        jabatan,
         appUrl: resolveSafeUrl(appUrl),
       }),
     });
