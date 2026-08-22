@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BookOpen, Mail, Lock, Eye, EyeOff, LogIn, Info, AlertCircle, X, ShieldCheck, UserCheck } from 'lucide-react';
-import { mockGuru, authConfig, loadPersistedData, savePersistedGuru } from '@/lib/mockData';
+import { mockGuru, authConfig, loadPersistedData, savePersistedGuru, clearGuruSession } from '@/lib/mockData';
 import { getGurusSupabase } from '@/lib/supabaseClient';
 import type { Guru } from '@/types';
 
@@ -35,21 +35,40 @@ export default function LoginPage() {
 
   useEffect(() => {
     loadPersistedData();
-    // Persistent login: If already logged in, redirect directly to guru portal
-    if (typeof window !== 'undefined') {
-      const savedGuruId = localStorage.getItem('logged_in_guru_id');
-      const hasGuruCookie = document.cookie.includes('guru_session=true');
-      if (savedGuruId || hasGuruCookie) {
-        router.replace('/guru/beranda');
-      }
-    }
-
-    // Sync teachers from Supabase on mount
+    
+    // Sync and verify teacher session from Supabase
     getGurusSupabase().then((dbGurus) => {
-      if (dbGurus && dbGurus.length > 0) {
+      if (Array.isArray(dbGurus) && dbGurus.length > 0) {
         mockGuru.length = 0;
         mockGuru.push(...dbGurus);
         savePersistedGuru(dbGurus);
+
+        if (typeof window !== 'undefined') {
+          const savedGuruId = localStorage.getItem('logged_in_guru_id');
+          const savedGuruEmail = localStorage.getItem('logged_in_guru_email');
+          const hasGuruCookie = document.cookie.includes('guru_session=true');
+
+          if (hasGuruCookie && (savedGuruId || savedGuruEmail)) {
+            const validGuru = dbGurus.find(
+              (g) => (savedGuruId && g.id === savedGuruId && g.aktif) ||
+                     (savedGuruEmail && g.email.toLowerCase() === savedGuruEmail.toLowerCase() && g.aktif)
+            );
+
+            if (validGuru) {
+              // Valid active teacher -> proceed to portal
+              router.replace('/guru/beranda');
+              return;
+            } else {
+              // Stale/deleted teacher in browser session -> completely clear session
+              clearGuruSession();
+            }
+          } else {
+            // No valid active session
+            clearGuruSession();
+          }
+        }
+      } else {
+        clearGuruSession();
       }
     }).catch(() => {});
   }, [router]);

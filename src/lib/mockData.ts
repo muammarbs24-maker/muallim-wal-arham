@@ -49,28 +49,48 @@ export const DEFAULT_GURU_PASSWORD = 'muallim123';
 // Daftar Guru Terdaftar
 export const mockGuru: Guru[] = [];
 
+export function clearGuruSession(): void {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('logged_in_guru_id');
+    localStorage.removeItem('logged_in_guru_email');
+    localStorage.removeItem('muallim_guru_user');
+    localStorage.removeItem('logged_in_guru_role');
+    sessionStorage.removeItem('redirect_after_login');
+    document.cookie = 'guru_session=; path=/; max-age=0; SameSite=Lax';
+    document.cookie = 'logged_guru_id=; path=/; max-age=0; SameSite=Lax';
+  }
+}
+
 export function getLoggedInGuru(): Guru {
   if (typeof window !== 'undefined') {
+    const loggedId = localStorage.getItem('logged_in_guru_id');
+    const loggedEmail = localStorage.getItem('logged_in_guru_email');
+
+    if (loggedId && mockGuru.length > 0) {
+      const found = mockGuru.find((g) => g.id === loggedId && g.aktif);
+      if (found) return found;
+    }
+    if (loggedEmail && mockGuru.length > 0) {
+      const found = mockGuru.find((g) => g.email.toLowerCase() === loggedEmail.toLowerCase() && g.aktif);
+      if (found) return found;
+    }
+
     const savedUser = localStorage.getItem('muallim_guru_user');
     if (savedUser) {
       try {
         const parsed = JSON.parse(savedUser);
-        if (parsed && parsed.id) return parsed;
+        if (parsed && parsed.id && parsed.aktif !== false) {
+          if (mockGuru.length === 0 || mockGuru.some(g => g.id === parsed.id)) {
+            return parsed;
+          }
+        }
       } catch (e) {}
-    }
-    const loggedId = localStorage.getItem('logged_in_guru_id');
-    const loggedEmail = localStorage.getItem('logged_in_guru_email');
-    if (loggedId) {
-      const found = mockGuru.find((g) => g.id === loggedId);
-      if (found) return found;
-    }
-    if (loggedEmail) {
-      const found = mockGuru.find((g) => g.email.toLowerCase() === loggedEmail.toLowerCase());
-      if (found) return found;
     }
   }
 
   if (mockGuru.length > 0) {
+    const activeFirst = mockGuru.find(g => g.aktif);
+    if (activeFirst) return activeFirst;
     return mockGuru[0];
   }
   return {

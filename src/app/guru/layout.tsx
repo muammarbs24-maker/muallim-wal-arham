@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import GuruNav from '@/components/guru/BottomNav';
+import { clearGuruSession } from '@/lib/mockData';
 
 export default function GuruLayout({
   children,
@@ -27,6 +28,7 @@ export default function GuruLayout({
     if (hasCookie || hasStorage) {
       setIsAuthenticated(true);
     } else {
+      clearGuruSession();
       setIsAuthenticated(false);
       // Simpan tujuan URL agar setelah login langsung masuk ke halaman yang dituju (misal: /guru/jadwal dari email)
       if (typeof window !== 'undefined') {

@@ -19,7 +19,7 @@ import {
 import {
   currentGuru, mockGuru, mockJadwal, mockJadwalMatrix, mockSettings, mockKegiatan,
   mockSesiList, syncMatrixToJadwal, loadPersistedData, mockAbsensi, savePersistedAbsensi,
-  getJadwalForGuru
+  getJadwalForGuru, clearGuruSession
 } from '@/lib/mockData';
 import type { AttendanceStatus, AbsensiRecord, Guru, Jadwal, AppSettings } from '@/types';
 
@@ -121,14 +121,15 @@ export default function BerandaPage() {
           
           if (f && f.aktif) {
             setGuruData(f);
-          } else {
-            // Jika guru sudah dihapus atau tidak aktif, bersihkan session lokal & arahkan ke login
             if (typeof window !== 'undefined') {
-              localStorage.removeItem('logged_in_guru_id');
-              localStorage.removeItem('logged_in_guru_email');
-              localStorage.removeItem('muallim_guru_user');
-              router.replace('/guru');
+              localStorage.setItem('logged_in_guru_id', f.id);
+              localStorage.setItem('logged_in_guru_email', f.email);
+              localStorage.setItem('muallim_guru_user', JSON.stringify(f));
             }
+          } else {
+            // Jika guru sudah dihapus atau tidak aktif, bersihkan session lokal & cookie secara tuntas
+            clearGuruSession();
+            router.replace('/');
           }
         }
       }).catch(() => {});
