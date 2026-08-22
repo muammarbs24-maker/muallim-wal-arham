@@ -21,6 +21,26 @@ export default function LoginPage() {
   const [googleEmail, setGoogleEmail] = useState('');
   const [googleError, setGoogleError] = useState<string | null>(null);
 
+  // Splash Screen State (5 Detik Selamat Datang)
+  const [showSplash, setShowSplash] = useState(true);
+  const [splashCountdown, setSplashCountdown] = useState(5);
+
+  useEffect(() => {
+    // Countdown timer 5 detik untuk Splash Screen
+    const timer = setInterval(() => {
+      setSplashCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setShowSplash(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
   useEffect(() => {
     loadPersistedData();
     // Persistent login: If already logged in, redirect directly to guru portal
@@ -207,55 +227,216 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'var(--color-bg)',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 'var(--space-4)',
-    }}>
-      {/* Logo & Header */}
-      <div style={{ textAlign: 'center', marginBottom: 'var(--space-6)' }}>
+    <>
+      {/* ═════════════════════════════════════════════════════════════
+          1. WELCOME SPLASH SCREEN (TAMPIL 5 DETIK PERTAMA)
+          ═════════════════════════════════════════════════════════════ */}
+      {showSplash && (
         <div style={{
-          width: 58,
-          height: 58,
-          background: 'var(--color-primary)',
-          borderRadius: 'var(--radius-xl)',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'linear-gradient(135deg, #0F402B 0%, #165338 50%, #0B2F20 100%)',
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          margin: '0 auto var(--space-3)',
-          boxShadow: '0 8px 24px rgba(27, 107, 74, 0.25)',
-          color: 'white',
+          zIndex: 99999,
+          padding: '24px',
+          color: '#ffffff',
+          textAlign: 'center',
+          animation: 'splash-fade-in 0.5s ease-out forwards',
         }}>
-          <BookOpen size={28} />
+          {/* Logo Container dengan Efek Glow & Ring */}
+          <div style={{
+            position: 'relative',
+            width: 140,
+            height: 140,
+            marginBottom: 24,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            <div style={{
+              position: 'absolute',
+              inset: -8,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(252, 211, 77, 0.4) 0%, rgba(252, 211, 77, 0) 70%)',
+              animation: 'splash-pulse 2s infinite ease-in-out',
+            }} />
+            <img
+              src="/logo.png"
+              alt="Logo Yayasan Mu'Allim Wal Arham"
+              style={{
+                width: '100%',
+                height: '100%',
+                borderRadius: '50%',
+                objectFit: 'cover',
+                boxShadow: '0 12px 36px rgba(0, 0, 0, 0.45)',
+                border: '3px solid #FCD34D',
+                position: 'relative',
+                zIndex: 2,
+              }}
+            />
+          </div>
+
+          {/* Sambutan & Nama Yayasan */}
+          <div style={{
+            fontSize: 12,
+            fontWeight: 800,
+            letterSpacing: '2px',
+            textTransform: 'uppercase',
+            color: '#FCD34D',
+            marginBottom: 8,
+            textShadow: '0 2px 8px rgba(0,0,0,0.3)',
+          }}>
+            Selamat Datang di Sistem Absensi
+          </div>
+
+          <h1 style={{
+            fontSize: 'clamp(20px, 5vw, 26px)',
+            fontWeight: 900,
+            color: '#ffffff',
+            margin: '0 0 6px',
+            letterSpacing: '-0.5px',
+            lineHeight: 1.25,
+            maxWidth: 480,
+          }}>
+            Yayasan Tahfidz Mu&apos;Allim Wal Arham
+          </h1>
+
+          <p style={{
+            fontSize: 13,
+            color: 'rgba(255, 255, 255, 0.85)',
+            margin: '0 0 28px',
+            fontWeight: 500,
+            letterSpacing: '0.5px',
+          }}>
+            Makassar — Indonesia
+          </p>
+
+          {/* Indikator Countdown 5 Detik */}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 12,
+            width: '100%',
+            maxWidth: 240,
+          }}>
+            <div style={{
+              width: '100%',
+              height: 4,
+              background: 'rgba(255, 255, 255, 0.2)',
+              borderRadius: 999,
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                height: '100%',
+                width: `${((5 - splashCountdown) / 5) * 100}%`,
+                background: 'linear-gradient(90deg, #FCD34D, #F59E0B)',
+                transition: 'width 1s linear',
+              }} />
+            </div>
+
+            <div style={{
+              fontSize: 11.5,
+              color: 'rgba(255, 255, 255, 0.75)',
+              fontWeight: 600,
+            }}>
+              Membuka form login dalam {splashCountdown} detik...
+            </div>
+
+            {/* Tombol Lewati / Masuk Langsung */}
+            <button
+              type="button"
+              onClick={() => setShowSplash(false)}
+              style={{
+                marginTop: 6,
+                padding: '6px 16px',
+                borderRadius: 9999,
+                background: 'rgba(255, 255, 255, 0.15)',
+                border: '1px solid rgba(255, 255, 255, 0.3)',
+                color: '#ffffff',
+                fontSize: 11.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.25)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)')}
+            >
+              Lewati &rarr;
+            </button>
+          </div>
+
+          <style>{`
+            @keyframes splash-pulse {
+              0%, 100% { transform: scale(1); opacity: 0.5; }
+              50% { transform: scale(1.15); opacity: 0.9; }
+            }
+            @keyframes splash-fade-in {
+              from { opacity: 0; transform: scale(0.98); }
+              to { opacity: 1; transform: scale(1); }
+            }
+          `}</style>
         </div>
-        <h1 style={{
-          fontSize: 'var(--font-size-2xl)',
-          fontWeight: 800,
-          color: 'var(--color-primary)',
-          letterSpacing: '-0.5px',
-        }}>
-          Mu&apos;Allim Attendance
-        </h1>
-        <p style={{
-          fontSize: 'var(--font-size-sm)',
-          color: 'var(--color-text-secondary)',
-          marginTop: 2,
-          fontWeight: 600,
-        }}>
-          Sistem Absensi &amp; Monitoring Guru
-        </p>
-        <p style={{
-          fontSize: 'var(--font-size-xs)',
-          color: 'var(--color-text-tertiary)',
-          marginTop: 2,
-        }}>
-          Yayasan Tahfidz Mu&apos;Allim Wal Arham
-        </p>
-      </div>
+      )}
+
+      {/* ═════════════════════════════════════════════════════════════
+          2. FORM LOGIN GURU (TAMPIL SETELAH SPLASH)
+          ═════════════════════════════════════════════════════════════ */}
+      <div style={{
+        minHeight: '100vh',
+        background: 'var(--color-bg)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 'var(--space-4)',
+      }}>
+        {/* Logo & Header */}
+        <div style={{ textAlign: 'center', marginBottom: 'var(--space-6)' }}>
+          <img
+            src="/logo.png"
+            alt="Logo Yayasan Mu'Allim Wal Arham"
+            style={{
+              width: 72,
+              height: 72,
+              borderRadius: '50%',
+              objectFit: 'cover',
+              margin: '0 auto var(--space-3)',
+              boxShadow: '0 8px 24px rgba(27, 107, 74, 0.25)',
+              border: '2px solid #FCD34D',
+              display: 'block',
+            }}
+          />
+          <h1 style={{
+            fontSize: 'var(--font-size-2xl)',
+            fontWeight: 800,
+            color: 'var(--color-primary)',
+            letterSpacing: '-0.5px',
+          }}>
+            Mu&apos;Allim Attendance
+          </h1>
+          <p style={{
+            fontSize: 'var(--font-size-sm)',
+            color: 'var(--color-text-secondary)',
+            marginTop: 2,
+            fontWeight: 600,
+          }}>
+            Sistem Absensi &amp; Monitoring Guru
+          </p>
+          <p style={{
+            fontSize: 'var(--font-size-xs)',
+            color: 'var(--color-text-tertiary)',
+            marginTop: 2,
+          }}>
+            Yayasan Tahfidz Mu&apos;Allim Wal Arham
+          </p>
+        </div>
 
       {/* Login Card */}
       <div className="card" style={{ width: '100%', maxWidth: 400, boxShadow: 'var(--shadow-lg)' }}>
@@ -582,5 +763,6 @@ export default function LoginPage() {
         © 2026 MR Team
       </p>
     </div>
+    </>
   );
 }

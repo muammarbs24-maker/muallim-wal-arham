@@ -59,9 +59,18 @@ export default function GuruNav() {
         {/* Logo */}
         <div className="sidebar-logo">
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-            <div className="sidebar-logo-mark">
-              <BookOpen size={18} />
-            </div>
+            <img
+              src="/logo.png"
+              alt="Logo Yayasan Mu'Allim Wal Arham"
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: '50%',
+                objectFit: 'cover',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                border: '1.5px solid #FCD34D'
+              }}
+            />
             <div>
               <div className="sidebar-logo-text">Mu&apos;Allim</div>
               <div className="sidebar-logo-sub">Sistem Absensi</div>

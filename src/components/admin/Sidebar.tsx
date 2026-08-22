@@ -85,10 +85,18 @@ export default function AdminSidebar() {
           >
             {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div className="sidebar-logo-mark" style={{ width: 28, height: 28, fontSize: 13 }}>
-              <BookOpen size={15} />
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <img
+              src="/logo.png"
+              alt="Logo Yayasan"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                objectFit: 'cover',
+                border: '1px solid #FCD34D'
+              }}
+            />
             <div>
               <div style={{ fontWeight: 800, fontSize: 14, lineHeight: 1.2, color: 'var(--color-text-primary)' }}>
                 Mu&apos;Allim
@@ -133,9 +141,18 @@ export default function AdminSidebar() {
         <div className="sidebar-logo">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-              <div className="sidebar-logo-mark">
-                <BookOpen size={18} />
-              </div>
+              <img
+                src="/logo.png"
+                alt="Logo Yayasan"
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                  border: '1.5px solid #FCD34D'
+                }}
+              />
               <div>
                 <div className="sidebar-logo-text">Mu&apos;Allim</div>
                 <div className="sidebar-logo-sub">Panel Admin</div>
