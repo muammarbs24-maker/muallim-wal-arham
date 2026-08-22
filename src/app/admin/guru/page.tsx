@@ -14,6 +14,7 @@ export default function AdminGuruPage() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [copiedPass, setCopiedPass] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -22,10 +23,14 @@ export default function AdminGuruPage() {
     setGuruList([...mockGuru]);
 
     getGurusSupabase().then((dbGurus) => {
-      if (Array.isArray(dbGurus)) {
+      if (Array.isArray(dbGurus) && dbGurus.length > 0) {
         mockGuru.length = 0;
         mockGuru.push(...dbGurus);
-        savePersistedGuru(dbGurus);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('muallim_guru_list', JSON.stringify(dbGurus));
+          } catch (e) {}
+        }
         setGuruList([...dbGurus]);
       }
     }).catch(() => {});
@@ -62,8 +67,9 @@ export default function AdminGuruPage() {
 
   const handleAddGuru = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.nama || !formData.email) return;
+    if (!formData.nama || !formData.email || isSubmitting) return;
 
+    setIsSubmitting(true);
     const assignedNip = formData.nip.trim() || generateNipYayasan(mockGuru.length, new Date().getFullYear());
 
     const newGuru: Guru = {
@@ -83,15 +89,21 @@ export default function AdminGuruPage() {
       perluGantiPassword: true, // Requires password update on first login!
     };
 
-    mockGuru.push(newGuru);
-    savePersistedGuru([...mockGuru]);
-    setGuruList([...mockGuru]);
-    setShowAddModal(false);
+    // 1. Simpan ke database Supabase Cloud
+    try {
+      await upsertGuruSupabase(newGuru);
+    } catch (err) {
+      console.error('Error upserting guru to Supabase:', err);
+    }
 
-    // Save to Supabase Cloud Database!
-    await upsertGuruSupabase(newGuru);
+    // 2. Simpan ke daftar lokal & state
+    const updatedGurus = [...mockGuru.filter(g => g.id !== newGuru.id), newGuru];
+    mockGuru.length = 0;
+    mockGuru.push(...updatedGurus);
+    savePersistedGuru(updatedGurus);
+    setGuruList([...updatedGurus]);
 
-    // Send onboarding email containing Name, Teacher ID (NIP), Login Email, and Password!
+    // 3. Kirim email onboarding
     sendTeacherWelcomeEmail({
       nama: newGuru.nama,
       nip: newGuru.nip,
@@ -99,8 +111,10 @@ export default function AdminGuruPage() {
       password: newGuru.password || authConfig.defaultGuruPassword || 'muallim123',
     }).then((res) => {
       console.log('Teacher credentials email status:', res);
-    });
+    }).catch(() => {});
 
+    setIsSubmitting(false);
+    setShowAddModal(false);
     setToastMessage(`✓ Berhasil mendaftarkan ${newGuru.nama}! Email berisi NIP (${newGuru.nip}) dan kredensial login telah dikirim ke ${newGuru.email}.`);
     setTimeout(() => setToastMessage(null), 6000);
   };
@@ -444,15 +458,23 @@ export default function AdminGuruPage() {
                   type="button"
                   className="btn btn-secondary btn-sm"
                   onClick={() => setShowAddModal(false)}
+                  disabled={isSubmitting}
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   className="btn btn-primary btn-sm"
-                  style={{ fontWeight: 700 }}
+                  disabled={isSubmitting}
+                  style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  Simpan &amp; Daftarkan Guru
+                  {isSubmitting ? (
+                    <>
+                      <span className="animate-spin"><Clock size={14} /></span> Menyimpan Data Guru...
+                    </>
+                  ) : (
+                    'Simpan & Daftarkan Guru'
+                  )}
                 </button>
               </div>
             </form>
