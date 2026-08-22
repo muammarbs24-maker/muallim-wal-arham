@@ -222,3 +222,40 @@ export async function sendTeacherReactivatedEmail({
     return { success: false, error: 'Koneksi gagal saat mengirim email aktivasi' };
   }
 }
+
+export interface SendStatusPromotionEmailParams {
+  guruNama: string;
+  guruEmail: string;
+  previousStatus: 'honorer' | 'magang' | string;
+  newStatus?: 'tetap' | string;
+  appUrl?: string;
+}
+
+export async function sendPermanentStatusCongratsEmail({
+  guruNama,
+  guruEmail,
+  previousStatus,
+  newStatus = 'tetap',
+  appUrl,
+}: SendStatusPromotionEmailParams) {
+  try {
+    const res = await fetch('/api/notifikasi/send-status-promotion-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        guruNama,
+        guruEmail,
+        previousStatus,
+        newStatus,
+        appUrl: resolveSafeUrl(appUrl),
+      }),
+    });
+
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.error('Error calling send-status-promotion-email API:', err);
+    return { success: false, error: 'Koneksi gagal saat mengirim email ucapan status tetap' };
+  }
+}
+

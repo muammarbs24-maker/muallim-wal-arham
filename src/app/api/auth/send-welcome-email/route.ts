@@ -20,9 +20,11 @@ export async function POST(request: Request) {
     const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
     const smtpUser = process.env.SMTP_USER;
     const smtpPass = process.env.SMTP_PASS;
-    const emailFrom = process.env.EMAIL_FROM || `"Yayasan Mu'Allim Wal Arham" <${smtpUser || 'noreply@muallim.sch.id'}>`;
+    const emailFrom = smtpUser 
+      ? `"Yayasan Tahfidz Mu'Allim Wal Arham" <${smtpUser}>`
+      : (process.env.EMAIL_FROM || '"Yayasan Mu\'Allim Wal Arham" <noreply@muallim.sch.id>');
 
-    const subject = `🎉 Selamat Bergabung! Akun Absensi Guru Yayasan Mu'Allim Wal Arham (${nip})`;
+    const subject = `Pemberitahuan Akun Pengajar: Yayasan Tahfidz Mu'Allim Wal Arham (NIP: ${nip})`;
 
     const htmlTemplate = `<!DOCTYPE html>
 <html lang="id">
@@ -136,9 +138,14 @@ export async function POST(request: Request) {
       await transporter.sendMail({
         from: emailFrom,
         to: email,
+        replyTo: smtpUser,
         subject: subject,
         html: htmlTemplate,
-        text: `Ahlan wa Sahlan ${nama}!\n\nAkun Anda telah didaftarkan di Yayasan Mu'Allim Wal Arham.\nID/NIP: ${nip}\nEmail: ${email}\nPassword Awal: ${password}\n\nSilakan login di: ${loginUrl}`,
+        text: `Assalamu'alaikum Warahmatullahi Wabarakatuh ${nama}!\n\nAkun pengajar Anda telah didaftarkan di Yayasan Tahfidz Mu'Allim Wal Arham.\n\nDetail Akun:\n- ID / NIP: ${nip}\n- Email: ${email}\n- Password Awal: ${password}\n\nSilakan login dan lengkapi profil di:\n${loginUrl}\n\nJazakumullah Khairan Katsiran.\nPengurus Yayasan Tahfidz Mu'Allim Wal Arham`,
+        headers: {
+          'X-Priority': '3',
+          'X-Mailer': 'SIPETA Yayasan Tahfidz Mu\'Allim Wal Arham',
+        },
       });
 
       console.log(`[WELCOME EMAIL SENT] Sent registration details to ${email} (NIP: ${nip})`);

@@ -36,8 +36,8 @@ export default function AdminGuruPage() {
     }).catch(() => {});
   }, []);
 
-  // Auto generated NIP for next teacher: MWA-YYYY-00X
-  const autoNip = generateNipYayasan(mockGuru.length, new Date().getFullYear());
+  // Auto generated NIP for next teacher based on existing list
+  const autoNip = generateNipYayasan(guruList.length > 0 ? guruList : mockGuru);
 
   // Form State for new Teacher
   const [formData, setFormData] = useState({
@@ -52,7 +52,7 @@ export default function AdminGuruPage() {
 
   // Open modal with fresh auto-generated NIP
   const openAddModal = () => {
-    const nextNip = generateNipYayasan(mockGuru.length, new Date().getFullYear());
+    const nextNip = generateNipYayasan(guruList.length > 0 ? guruList : mockGuru);
     setFormData({
       nama: '',
       email: '',
@@ -69,13 +69,21 @@ export default function AdminGuruPage() {
     e.preventDefault();
     if (!formData.nama || !formData.email || isSubmitting) return;
 
+    // Check for duplicate email
+    const trimmedEmail = formData.email.trim().toLowerCase();
+    if (guruList.some((g) => g.email.toLowerCase() === trimmedEmail)) {
+      alert(`Email "${trimmedEmail}" sudah digunakan oleh guru lain.`);
+      return;
+    }
+
     setIsSubmitting(true);
-    const assignedNip = formData.nip.trim() || generateNipYayasan(mockGuru.length, new Date().getFullYear());
+    const currentList = guruList.length > 0 ? guruList : mockGuru;
+    const assignedNip = formData.nip.trim() || generateNipYayasan(currentList);
 
     const newGuru: Guru = {
       id: `guru-${Date.now()}`,
       nama: formData.nama.trim(),
-      email: formData.email.trim().toLowerCase(),
+      email: trimmedEmail,
       nip: assignedNip,
       jabatan: formData.jabatan,
       statusKepegawaian: formData.statusKepegawaian,
@@ -90,10 +98,17 @@ export default function AdminGuruPage() {
     };
 
     // 1. Simpan ke database Supabase Cloud
+    let result: { success: boolean; error?: string } = { success: false, error: '' };
     try {
-      await upsertGuruSupabase(newGuru);
-    } catch (err) {
-      console.error('Error upserting guru to Supabase:', err);
+      result = await upsertGuruSupabase(newGuru);
+    } catch (err: any) {
+      result = { success: false, error: err?.message || 'Gagal koneksi' };
+    }
+
+    if (!result.success) {
+      setIsSubmitting(false);
+      alert(`Gagal menyimpan data guru: ${result.error || 'Pastikan NIP dan Email belum pernah digunakan.'}`);
+      return;
     }
 
     // 2. Simpan ke daftar lokal & state

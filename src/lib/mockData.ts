@@ -47,24 +47,7 @@ export const authConfig = {
 export const DEFAULT_GURU_PASSWORD = 'muallim123';
 
 // Daftar Guru Terdaftar
-export const mockGuru: Guru[] = [
-  {
-    id: 'guru-1',
-    nama: 'Muammar',
-    nip: 'MWA-2026-001',
-    jabatan: 'Ustadz',
-    statusKepegawaian: 'tetap',
-    email: 'muammarbs24@gmail.com',
-    telepon: '081234567890',
-    alamat: 'Makassar',
-    foto: '',
-    role: 'guru',
-    aktif: true,
-    tanggalGabung: '2026-08-20',
-    password: DEFAULT_GURU_PASSWORD,
-    perluGantiPassword: true, // Akan diarahkan ganti password pada login pertama
-  },
-];
+export const mockGuru: Guru[] = [];
 
 export function getLoggedInGuru(): Guru {
   if (typeof window !== 'undefined') {

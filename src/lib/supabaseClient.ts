@@ -79,7 +79,7 @@ export async function getGurusSupabase(): Promise<Guru[]> {
   }
 }
 
-export async function upsertGuruSupabase(guru: Guru): Promise<boolean> {
+export async function upsertGuruSupabase(guru: Guru): Promise<{ success: boolean; error?: string }> {
   try {
     const { error } = await supabase
       .from('gurus')
@@ -100,10 +100,14 @@ export async function upsertGuruSupabase(guru: Guru): Promise<boolean> {
         perlu_ganti_password: guru.perluGantiPassword,
       }, { onConflict: 'id' });
 
-    return !error;
-  } catch (err) {
-    console.error('Error upsertGuruSupabase:', err);
-    return false;
+    if (error) {
+      console.error('Error upsertGuruSupabase:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error upsertGuruSupabase exception:', err);
+    return { success: false, error: err?.message || 'Gagal menyimpan ke database' };
   }
 }
 

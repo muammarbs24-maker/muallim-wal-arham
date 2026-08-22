@@ -358,9 +358,27 @@ export function classNames(...classes: (string | boolean | undefined | null)[]):
  * Format: MWA-[Tahun Masuk]-[Nomor Urut 3 Digit]
  * Contoh: MWA-2026-001, MWA-2026-002
  */
-export function generateNipYayasan(existingCount: number, tahun = new Date().getFullYear()): string {
-  const nextNumber = existingCount + 1;
+export function generateNipYayasan(existing: number | Array<{ nip?: string } | string>, tahun = new Date().getFullYear()): string {
+  let nextNumber = 1;
+  const prefix = `MWA-${tahun}-`;
+
+  if (Array.isArray(existing)) {
+    let maxNum = 0;
+    for (const item of existing) {
+      const nipStr = typeof item === 'string' ? item : item.nip;
+      if (nipStr && nipStr.startsWith(prefix)) {
+        const numPart = parseInt(nipStr.replace(prefix, ''), 10);
+        if (!isNaN(numPart) && numPart > maxNum) {
+          maxNum = numPart;
+        }
+      }
+    }
+    nextNumber = maxNum + 1;
+  } else if (typeof existing === 'number') {
+    nextNumber = existing + 1;
+  }
+
   const formattedNumber = String(nextNumber).padStart(3, '0');
-  return `MWA-${tahun}-${formattedNumber}`;
+  return `${prefix}${formattedNumber}`;
 }
 

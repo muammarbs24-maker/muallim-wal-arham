@@ -24,10 +24,24 @@ export async function POST(request: Request) {
     const smtpPort = parseInt(process.env.SMTP_PORT || '587', 10);
     const smtpUser = process.env.SMTP_USER;
     const smtpPass = process.env.SMTP_PASS;
-    const emailFrom = process.env.EMAIL_FROM || `"Yayasan Mu'Allim Wal Arham" <${smtpUser || 'noreply@muallim.sch.id'}>`;
+    const emailFrom = smtpUser 
+      ? `"Yayasan Tahfidz Mu'Allim Wal Arham" <${smtpUser}>`
+      : (process.env.EMAIL_FROM || '"Yayasan Mu\'Allim Wal Arham" <noreply@muallim.sch.id>');
 
-    const subject = `✅ Akun Mengajar Anda Telah Diaktifkan Kembali — Yayasan Tahfidz Mu'Allim Wal Arham`;
+    const subject = `Pemberitahuan Resmi: Akun Mengajar Anda Telah Diaktifkan Kembali - Yayasan Tahfidz Mu'Allim Wal Arham`;
     const loginLink = `${safeAppUrl}/guru/beranda`;
+
+    const plainTextContent = `Assalamu'alaikum Warahmatullahi Wabarakatuh,
+
+Yth. ${guruNama},
+
+Kami menginformasikan bahwa status akun pengajar Anda di sistem Yayasan Tahfidz Mu'Allim Wal Arham telah DIAKTIFKAN KEMBALI oleh Administrator.
+
+Anda kini dapat kembali login ke portal guru, melihat jadwal mengajar aktif, dan melakukan absensi presensi seperti biasa di:
+${loginLink}
+
+Jazakumullah Khairan Katsiran.
+Yayasan Tahfidz Mu'Allim Wal Arham Makassar`;
 
     const htmlContent = `<!DOCTYPE html>
 <html lang="id">
@@ -109,8 +123,14 @@ export async function POST(request: Request) {
       const info = await transporter.sendMail({
         from: emailFrom,
         to: guruEmail,
+        replyTo: smtpUser,
         subject,
+        text: plainTextContent,
         html: htmlContent,
+        headers: {
+          'X-Priority': '3',
+          'X-Mailer': 'SIPETA Yayasan Tahfidz Mu\'Allim Wal Arham',
+        },
       });
 
       return NextResponse.json({ success: true, mode: 'smtp', messageId: info.messageId, guruEmail });

@@ -14,7 +14,7 @@ import {
   loadPersistedData, savePersistedGuru
 } from '@/lib/mockData';
 import { getInitials, getStatusLabel, getTodayStringWITA } from '@/lib/utils';
-import { sendTeacherReactivatedEmail } from '@/lib/emailService';
+import { sendTeacherReactivatedEmail, sendPermanentStatusCongratsEmail } from '@/lib/emailService';
 import type { Guru, AbsensiRecord, AttendanceStatus } from '@/types';
 
 export default function AdminGuruDetailPage() {
@@ -257,6 +257,9 @@ export default function AdminGuruDetailPage() {
       return;
     }
 
+    const previousStatus = guru?.statusKepegawaian || 'honorer';
+    const isPromotedToTetap = previousStatus !== 'tetap' && editForm.statusKepegawaian === 'tetap';
+
     setIsSavingEdit(true);
     const updatedGuru: Guru = {
       ...guru,
@@ -270,7 +273,7 @@ export default function AdminGuruDetailPage() {
     };
 
     // Update local memory
-    const idx = mockGuru.findIndex((g) => g.id === guru.id);
+    const idx = mockGuru.findIndex((g) => g.id === guru?.id);
     if (idx !== -1) mockGuru[idx] = updatedGuru;
     savePersistedGuru([...mockGuru]);
     setGuru(updatedGuru);
@@ -286,13 +289,35 @@ export default function AdminGuruDetailPage() {
         status_kepegawaian: updatedGuru.statusKepegawaian,
         telepon: updatedGuru.telepon,
         alamat: updatedGuru.alamat,
-      }).eq('id', guru.id);
-    } catch (e) {}
+      }).eq('id', guru?.id);
+    } catch (e) {
+      console.error('Error updating guru in Supabase:', e);
+    }
+
+    // Kirim email ucapan selamat jika dipromosikan menjadi Karyawan / Guru Tetap
+    if (isPromotedToTetap && updatedGuru.email) {
+      sendPermanentStatusCongratsEmail({
+        guruNama: updatedGuru.nama,
+        guruEmail: updatedGuru.email,
+        previousStatus: previousStatus,
+        newStatus: 'tetap',
+      }).then((res) => {
+        console.log('Status promotion email sent status:', res);
+      }).catch((err) => {
+        console.error('Failed to send status promotion email:', err);
+      });
+    }
 
     setIsSavingEdit(false);
     setShowEditModal(false);
-    setToastMessage(`✓ Data guru ${updatedGuru.nama} berhasil diperbarui!`);
-    setTimeout(() => setToastMessage(null), 3500);
+    
+    if (isPromotedToTetap) {
+      setToastMessage(`✓ Data guru ${updatedGuru.nama} berhasil diperbarui! Email ucapan selamat pengangkatan Guru Tetap telah dikirim ke ${updatedGuru.email}.`);
+      setTimeout(() => setToastMessage(null), 5000);
+    } else {
+      setToastMessage(`✓ Data guru ${updatedGuru.nama} berhasil diperbarui!`);
+      setTimeout(() => setToastMessage(null), 3500);
+    }
   };
 
   // 2. Eksekusi Nonaktifkan Guru
