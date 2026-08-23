@@ -182,12 +182,25 @@ export default function JadwalPage() {
 
     setIsSubmittingIzin(false);
     setShowIzinModal(false);
+    markJadwalBesokConfirmed();
     setToastMessage(`✓ Konfirmasi ${izinType === 'izin' ? 'Izin' : 'Sakit'} untuk jadwal besok berhasil dikirim.`);
     setTimeout(() => setToastMessage(null), 3500);
   };
 
   // Handle konfirmasi siap hadir
+  const markJadwalBesokConfirmed = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowDateStr = tomorrow.toISOString().split('T')[0];
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('jadwal_besok_confirmed_date', tomorrowDateStr);
+      window.dispatchEvent(new Event('jadwal_besok_confirmed'));
+    }
+  };
+
+  // Handle konfirmasi siap hadir
   const handleConfirmHadirBesok = () => {
+    markJadwalBesokConfirmed();
     setToastMessage(`✓ Terima kasih! Anda telah mengonfirmasi kehadiran untuk jadwal besok (${tomorrowDayName}).`);
     setTimeout(() => setToastMessage(null), 3500);
   };

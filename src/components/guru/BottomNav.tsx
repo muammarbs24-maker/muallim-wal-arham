@@ -8,7 +8,7 @@ import { currentGuru, mockJadwal, mockJadwalMatrix, mockSesiList, syncMatrixToJa
 import { getInitials } from '@/lib/utils';
 import type { Guru } from '@/types';
 
-const JADWAL_SEEN_KEY = 'jadwal_besok_seen_date';
+const JADWAL_CONFIRMED_KEY = 'jadwal_besok_confirmed_date';
 
 const navItems = [
   { href: '/guru/beranda', label: 'Beranda', icon: Home },
@@ -40,9 +40,9 @@ export default function GuruNav() {
     const tomorrowDayName = daysArr[tomorrow.getDay()];
     const tomorrowDateStr = tomorrow.toISOString().split('T')[0];
 
-    // Cek apakah sudah dilihat hari ini
-    const seenDate = typeof window !== 'undefined' ? localStorage.getItem(JADWAL_SEEN_KEY) : null;
-    if (seenDate === tomorrowDateStr) {
+    // Cek apakah sudah dikonfirmasi (klik Siap Hadir / Tidak Bisa Hadir)
+    const confirmedDate = typeof window !== 'undefined' ? localStorage.getItem(JADWAL_CONFIRMED_KEY) : null;
+    if (confirmedDate === tomorrowDateStr) {
       setHasJadwalBesok(false);
       return;
     }
@@ -104,14 +104,14 @@ export default function GuruNav() {
     }
   }, [checkJadwalBesok]);
 
-  // Ketika user berada di halaman jadwal → mark sebagai sudah dibaca
+  // Dengarkan event konfirmasi dari halaman jadwal
   useEffect(() => {
-    if (pathname.startsWith('/guru/jadwal') && typeof window !== 'undefined') {
-      const tomorrowDateStr = getTomorrowDateStr();
-      localStorage.setItem(JADWAL_SEEN_KEY, tomorrowDateStr);
+    const handleConfirmed = () => {
       setHasJadwalBesok(false);
-    }
-  }, [pathname]);
+    };
+    window.addEventListener('jadwal_besok_confirmed', handleConfirmed);
+    return () => window.removeEventListener('jadwal_besok_confirmed', handleConfirmed);
+  }, []);
 
   const handleConfirmLogout = () => {
     if (typeof document !== 'undefined') {
