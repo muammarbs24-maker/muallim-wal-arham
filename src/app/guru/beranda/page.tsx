@@ -286,10 +286,13 @@ export default function BerandaPage() {
   }), [myMonthAbsensi]);
 
   // ── Rekap Minggu Ini ──────────────────────────────────────────────────────
+  // Prioritas status (terburuk menang): alfa > terlambat > izin > sakit > hadir
+  const STATUS_PRIORITY: Record<string, number> = {
+    alfa: 5, terlambat: 4, izin: 3, sakit: 2, hadir_tepat_waktu: 1,
+  };
   const weekDays = useMemo(() => {
     const today = new Date();
     const dayOfWeek = today.getDay(); // 0=Sun
-    // Senin = index 1, offset from Sunday
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const monday = new Date(today);
     monday.setDate(today.getDate() + mondayOffset);
@@ -300,10 +303,23 @@ export default function BerandaPage() {
       const dayName = ['Ahad', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][d.getDay()];
       const isPast = d <= today;
       const isToday = dateStr === todayStr;
-      const absenRec = absensiList.find((a) =>
+
+      // Ambil SEMUA record absensi hari itu
+      const dayRecs = absensiList.filter((a) =>
         (a.guruId === guruData.id || a.guruNama === guruData.nama) && a.tanggal === dateStr
       );
-      return { dateStr, dayName, isPast, isToday, absenRec, d };
+
+      // Status terburuk
+      const worstRec = dayRecs.reduce<typeof dayRecs[0] | null>((worst, rec) => {
+        if (!worst) return rec;
+        return (STATUS_PRIORITY[rec.status] || 0) > (STATUS_PRIORITY[worst.status] || 0) ? rec : worst;
+      }, null);
+
+      // Apakah ada campuran status?
+      const uniqueStatuses = [...new Set(dayRecs.map((r) => r.status))];
+      const isMixed = uniqueStatuses.length > 1;
+
+      return { dateStr, dayName, isPast, isToday, absenRec: worstRec, dayRecs, isMixed, d };
     });
   }, [absensiList, guruData, todayStr]);
 
@@ -1720,7 +1736,7 @@ export default function BerandaPage() {
 
       {/* ── CARD JADWAL BESOK ── */}
       {tomorrowSchedules.length > 0 && (
-        <div style={{ padding: '0 var(--space-4)', marginBottom: 'var(--space-4)' }}>
+        <div style={{ padding: '0 var(--space-4)', marginTop: 'var(--space-5)', marginBottom: 'var(--space-4)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 'var(--space-2)' }}>
             <Calendar size={14} color="var(--color-primary)" />
             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
@@ -1971,38 +1987,60 @@ export default function BerandaPage() {
         <div className="card">
           <div style={{ padding: '12px 14px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 }}>
-              {weekDays.map(({ dayName, isToday, isPast, absenRec }) => {
+              {weekDays.map(({ dayName, isToday, isPast, absenRec, dayRecs, isMixed }) => {
                 const shortDay = dayName.slice(0, 3);
-                let dotColor = '#E5E7EB'; // default: belum / mendatang
                 let bgColor = 'var(--color-surface-2)';
                 let textColor = 'var(--color-text-tertiary)';
                 let statusLabel = '—';
+                let bgGradient: string | undefined;
 
                 if (isPast && absenRec) {
                   const s = absenRec.status;
-                  if (s === 'hadir_tepat_waktu') { dotColor = '#10B981'; bgColor = '#F0FDF4'; textColor = '#065F46'; statusLabel = '✓'; }
-                  else if (s === 'terlambat') { dotColor = '#F59E0B'; bgColor = '#FFFBEB'; textColor = '#92400E'; statusLabel = '⏱'; }
-                  else if (s === 'izin' || s === 'sakit') { dotColor = '#3B82F6'; bgColor = '#EFF6FF'; textColor = '#1E40AF'; statusLabel = '📋'; }
-                  else if (s === 'alfa') { dotColor = '#EF4444'; bgColor = '#FEF2F2'; textColor = '#991B1B'; statusLabel = '✗'; }
+                  if (s === 'hadir_tepat_waktu') { bgColor = '#F0FDF4'; textColor = '#065F46'; statusLabel = '✓'; }
+                  else if (s === 'terlambat') { bgColor = '#FFFBEB'; textColor = '#92400E'; statusLabel = '⏱'; }
+                  else if (s === 'izin' || s === 'sakit') { bgColor = '#EFF6FF'; textColor = '#1E40AF'; statusLabel = '📋'; }
+                  else if (s === 'alfa') { bgColor = '#FEF2F2'; textColor = '#991B1B'; statusLabel = '✗'; }
+
+                  // Campuran: split background dua warna
+                  if (isMixed) {
+                    // Cek apakah ada hadir + alfa → paling umum
+                    const hasAlfa = dayRecs.some((r) => r.status === 'alfa');
+                    const hasHadir = dayRecs.some((r) => r.status === 'hadir_tepat_waktu' || r.status === 'terlambat');
+                    if (hasAlfa && hasHadir) {
+                      bgGradient = 'linear-gradient(135deg, #F0FDF4 50%, #FEF2F2 50%)';
+                      textColor = '#92400E';
+                      statusLabel = '⚠';
+                    }
+                  }
                 } else if (isPast && !absenRec) {
-                  // Hari kerja sudah lewat tapi tidak ada jadwal → hari libur/tidak ada jadwal
                   statusLabel = '○';
                 }
 
                 return (
-                  <div key={dayName} style={{
-                    textAlign: 'center', padding: '8px 4px',
-                    borderRadius: 'var(--radius-md)',
-                    background: isToday ? 'var(--color-primary)' : bgColor,
-                    border: isToday ? 'none' : '1px solid var(--color-border-light)',
-                    transition: 'all 0.15s ease',
-                  }}>
+                  <div key={dayName}
+                    title={isMixed && dayRecs.length > 0
+                      ? `${dayRecs.length} sesi: ${dayRecs.map((r) => r.status === 'hadir_tepat_waktu' ? 'Hadir' : r.status === 'alfa' ? 'Alfa' : r.status === 'terlambat' ? 'Terlambat' : r.status).join(', ')}`
+                      : undefined
+                    }
+                    style={{
+                      textAlign: 'center', padding: '8px 4px',
+                      borderRadius: 'var(--radius-md)',
+                      background: isToday ? 'var(--color-primary)' : (bgGradient || bgColor),
+                      border: isToday ? 'none' : (isMixed ? '1.5px dashed #F59E0B' : '1px solid var(--color-border-light)'),
+                      transition: 'all 0.15s ease',
+                      cursor: isMixed ? 'help' : 'default',
+                    }}>
                     <div style={{ fontSize: 9, fontWeight: 700, color: isToday ? 'rgba(255,255,255,0.8)' : 'var(--color-text-tertiary)', marginBottom: 2 }}>
                       {shortDay}
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 900, color: isToday ? '#fff' : textColor, lineHeight: 1 }}>
+                    <div style={{ fontSize: isMixed ? 12 : 14, fontWeight: 900, color: isToday ? '#fff' : textColor, lineHeight: 1 }}>
                       {isToday ? '•' : statusLabel}
                     </div>
+                    {isMixed && !isToday && (
+                      <div style={{ fontSize: 8, fontWeight: 700, color: '#92400E', marginTop: 1 }}>
+                        {dayRecs.length}sesi
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -2017,6 +2055,10 @@ export default function BerandaPage() {
                   {label}
                 </div>
               ))}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--color-text-tertiary)' }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: 'linear-gradient(135deg, #F0FDF4 50%, #FEF2F2 50%)', border: '1px dashed #F59E0B', display: 'inline-block' }} />
+                Campuran
+              </div>
             </div>
           </div>
         </div>
