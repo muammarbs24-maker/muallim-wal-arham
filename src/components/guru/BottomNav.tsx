@@ -2,11 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, Calendar, Activity, BarChart2, User, BookOpen, Bell, LogOut } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { currentGuru } from '@/lib/mockData';
+import { Home, Calendar, Activity, BarChart2, User, LogOut } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { currentGuru, mockJadwal, mockJadwalMatrix, mockSesiList, syncMatrixToJadwal, loadPersistedData } from '@/lib/mockData';
 import { getInitials } from '@/lib/utils';
 import type { Guru } from '@/types';
+
+const JADWAL_SEEN_KEY = 'jadwal_besok_seen_date';
 
 const navItems = [
   { href: '/guru/beranda', label: 'Beranda', icon: Home },
@@ -21,6 +23,45 @@ export default function GuruNav() {
   const router = useRouter();
   const [showLogout, setShowLogout] = useState(false);
   const [activeGuru, setActiveGuru] = useState<Guru>(currentGuru);
+  const [hasJadwalBesok, setHasJadwalBesok] = useState(false);
+
+  // Hitung tanggal besok sebagai string 'YYYY-MM-DD'
+  const getTomorrowDateStr = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  };
+
+  // Cek apakah badge harus ditampilkan
+  const checkJadwalBesok = useCallback((guru: Guru) => {
+    const daysArr = ['Ahad', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowDayName = daysArr[tomorrow.getDay()];
+    const tomorrowDateStr = tomorrow.toISOString().split('T')[0];
+
+    // Cek apakah sudah dilihat hari ini
+    const seenDate = typeof window !== 'undefined' ? localStorage.getItem(JADWAL_SEEN_KEY) : null;
+    if (seenDate === tomorrowDateStr) {
+      setHasJadwalBesok(false);
+      return;
+    }
+
+    // Pastikan data jadwal sudah di-load
+    syncMatrixToJadwal();
+
+    // Cari jadwal besok untuk guru ini
+    const tomorrowSchedules = mockJadwal.filter(
+      (j) =>
+        (j.guruId === guru.id ||
+          j.guruNama === guru.nama ||
+          (guru.nama && j.guruNama.toLowerCase() === guru.nama.toLowerCase())) &&
+        j.aktif &&
+        j.hari === tomorrowDayName
+    );
+
+    setHasJadwalBesok(tomorrowSchedules.length > 0);
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -28,11 +69,49 @@ export default function GuruNav() {
       if (savedUser) {
         try {
           const parsed = JSON.parse(savedUser);
-          if (parsed && parsed.id) setActiveGuru(parsed);
+          if (parsed && parsed.id) {
+            setActiveGuru(parsed);
+            // Load data lalu cek jadwal
+            loadPersistedData();
+            syncMatrixToJadwal();
+            checkJadwalBesok(parsed);
+
+            // Juga fetch dari supabase untuk data terbaru
+            import('@/lib/supabaseClient').then(({ getJadwalMatrixSupabase, getSesiListSupabase }) => {
+              getSesiListSupabase().then((sessions) => {
+                if (sessions && sessions.length > 0) {
+                  mockSesiList.length = 0;
+                  mockSesiList.push(...sessions);
+                }
+              }).catch(() => {});
+
+              getJadwalMatrixSupabase().then((matrix) => {
+                if (matrix !== null && matrix !== undefined) {
+                  mockJadwalMatrix.length = 0;
+                  mockJadwalMatrix.push(...matrix);
+                  syncMatrixToJadwal();
+                  checkJadwalBesok(parsed);
+                }
+              }).catch(() => {});
+            }).catch(() => {});
+          }
         } catch (e) {}
+      } else {
+        loadPersistedData();
+        syncMatrixToJadwal();
+        checkJadwalBesok(currentGuru);
       }
     }
-  }, []);
+  }, [checkJadwalBesok]);
+
+  // Ketika user berada di halaman jadwal → mark sebagai sudah dibaca
+  useEffect(() => {
+    if (pathname.startsWith('/guru/jadwal') && typeof window !== 'undefined') {
+      const tomorrowDateStr = getTomorrowDateStr();
+      localStorage.setItem(JADWAL_SEEN_KEY, tomorrowDateStr);
+      setHasJadwalBesok(false);
+    }
+  }, [pathname]);
 
   const handleConfirmLogout = () => {
     if (typeof document !== 'undefined') {
@@ -83,10 +162,48 @@ export default function GuruNav() {
           <div className="sidebar-nav-label">Menu</div>
           {navItems.map(({ href, label, icon: Icon }) => {
             const isActive = pathname.startsWith(href);
+            const isJadwal = href === '/guru/jadwal';
             return (
-              <Link key={href} href={href} className={`sidebar-nav-item ${isActive ? 'active' : ''}`}>
-                <Icon size={18} />
+              <Link key={href} href={href} className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
+                style={{ position: 'relative' }}
+              >
+                <span style={{ position: 'relative', display: 'inline-flex' }}>
+                  <Icon size={18} />
+                  {isJadwal && hasJadwalBesok && (
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: -4,
+                        right: -5,
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: '#EF4444',
+                        border: '1.5px solid var(--color-surface)',
+                        display: 'block',
+                        animation: 'jadwal-badge-pulse 1.8s ease-in-out infinite',
+                      }}
+                    />
+                  )}
+                </span>
                 {label}
+                {isJadwal && hasJadwalBesok && (
+                  <span
+                    style={{
+                      marginLeft: 'auto',
+                      background: '#EF4444',
+                      color: '#fff',
+                      fontSize: 9,
+                      fontWeight: 800,
+                      borderRadius: 99,
+                      padding: '1px 5px',
+                      lineHeight: 1.6,
+                      letterSpacing: '0.02em',
+                    }}
+                  >
+                    Besok
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -127,9 +244,28 @@ export default function GuruNav() {
       <nav className="bottom-nav">
         {navItems.map(({ href, label, icon: Icon }) => {
           const isActive = pathname.startsWith(href);
+          const isJadwal = href === '/guru/jadwal';
           return (
             <Link key={href} href={href} className={`bottom-nav-item ${isActive ? 'active' : ''}`}>
-              <Icon strokeWidth={isActive ? 2.5 : 1.8} />
+              <span style={{ position: 'relative', display: 'inline-flex' }}>
+                <Icon strokeWidth={isActive ? 2.5 : 1.8} />
+                {isJadwal && hasJadwalBesok && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: -3,
+                      right: -4,
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background: '#EF4444',
+                      border: '1.5px solid var(--color-surface)',
+                      display: 'block',
+                      animation: 'jadwal-badge-pulse 1.8s ease-in-out infinite',
+                    }}
+                  />
+                )}
+              </span>
               <span>{label}</span>
             </Link>
           );
