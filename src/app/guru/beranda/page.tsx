@@ -4,7 +4,8 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   MapPin, Clock, CheckCircle2, AlertCircle, LogIn, LogOut,
   Calendar, ChevronRight, Wifi, Briefcase, Sparkles, Check,
-  Navigation, RotateCcw, Timer, Plane, Radio, Send
+  Navigation, RotateCcw, Timer, Plane, Radio, Send,
+  TrendingUp, Award, XCircle, Edit2, Users, Star
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -19,7 +20,7 @@ import {
 import {
   currentGuru, mockGuru, mockJadwal, mockJadwalMatrix, mockSettings, mockKegiatan,
   mockSesiList, syncMatrixToJadwal, loadPersistedData, mockAbsensi, savePersistedAbsensi,
-  getJadwalForGuru, clearGuruSession
+  getJadwalForGuru, clearGuruSession, mockPartisipasi
 } from '@/lib/mockData';
 import type { AttendanceStatus, AbsensiRecord, Guru, Jadwal, AppSettings } from '@/types';
 
@@ -49,6 +50,8 @@ export default function BerandaPage() {
   const [guruData, setGuruData] = useState<Guru>(currentGuru);
   const [jadwalList, setJadwalList] = useState<Jadwal[]>([]);
   const [appSettings, setAppSettings] = useState<AppSettings>(mockSettings);
+  const [absensiList, setAbsensiList] = useState<AbsensiRecord[]>([]);
+  const [kegiatanList, setKegiatanList] = useState(mockKegiatan);
 
   // GPS Monitoring State
   const [visitModeMap, setVisitModeMap] = useState<Record<string, boolean>>({}); // visit mode per sesi
@@ -60,6 +63,12 @@ export default function BerandaPage() {
   const [kendalaTipe, setKendalaTipe] = useState<'izin' | 'sakit'>('izin');
   const [kendalaAlasan, setKendalaAlasan] = useState('');
   const [isSubmittingKendala, setIsSubmittingKendala] = useState(false);
+
+  // State jadwal besok
+  const [tomorrowIzinType, setTomorrowIzinType] = useState<'izin' | 'sakit'>('izin');
+  const [tomorrowAlasan, setTomorrowAlasan] = useState('');
+  const [showTomorrowIzinModal, setShowTomorrowIzinModal] = useState(false);
+  const [isSubmittingTomorrow, setIsSubmittingTomorrow] = useState(false);
 
   // Refs untuk hindari stale closure di interval GPS
   const sessionsMapRef = useRef(sessionsMap);
@@ -105,7 +114,15 @@ export default function BerandaPage() {
     const list = getJadwalForGuru(activeGuru.id);
     setJadwalList(list);
 
-    import('@/lib/supabaseClient').then(({ getAppSettingsSupabase, getJadwalMatrixSupabase, getGurusSupabase, getSesiListSupabase, getAbsensiSupabase }) => {
+    // Load absensi list untuk stats
+    const savedAbs = typeof window !== 'undefined' ? localStorage.getItem('muallim_absensi_list') : null;
+    if (savedAbs) {
+      try { setAbsensiList(JSON.parse(savedAbs)); } catch (e) {}
+    } else {
+      setAbsensiList([...mockAbsensi]);
+    }
+
+    import('@/lib/supabaseClient').then(({ getAppSettingsSupabase, getJadwalMatrixSupabase, getGurusSupabase, getSesiListSupabase, getAbsensiSupabase, getKegiatanListSupabase, getKegiatanPartisipasiSupabase }) => {
       getAppSettingsSupabase().then((s) => {
         if (s) setAppSettings(s);
       }).catch(() => {});
@@ -188,6 +205,22 @@ export default function BerandaPage() {
             setSessionsMap({});
           }
         }
+        setAbsensiList([...mockAbsensi]);
+      }).catch(() => {});
+
+      getKegiatanListSupabase().then((list) => {
+        if (Array.isArray(list)) {
+          mockKegiatan.length = 0;
+          mockKegiatan.push(...list);
+          setKegiatanList([...list]);
+        }
+      }).catch(() => {});
+
+      getKegiatanPartisipasiSupabase().then((list) => {
+        if (Array.isArray(list)) {
+          mockPartisipasi.length = 0;
+          mockPartisipasi.push(...list);
+        }
       }).catch(() => {});
 
       getJadwalMatrixSupabase().then((matrix) => {
@@ -221,6 +254,107 @@ export default function BerandaPage() {
       .filter((j) => (j.guruId === guruData.id || j.guruNama === guruData.nama) && j.hari === hariIni && j.aktif)
       .sort((a, b) => a.jamMulai.localeCompare(b.jamMulai));
   }, [jadwalList, guruData, hariIni]);
+
+  // ── Jadwal Besok ──────────────────────────────────────────────────────────
+  const daysArr7 = ['Ahad', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const tomorrowDate = useMemo(() => { const d = new Date(); d.setDate(d.getDate() + 1); return d; }, []);
+  const tomorrowDateStr = tomorrowDate.toISOString().split('T')[0];
+  const tomorrowDayName = daysArr7[tomorrowDate.getDay()];
+  const tomorrowSchedules = useMemo(() =>
+    jadwalList.filter((j) =>
+      (j.guruId === guruData.id || j.guruNama === guruData.nama || (guruData.nama && j.guruNama.toLowerCase() === guruData.nama.toLowerCase())) &&
+      j.aktif && j.hari === tomorrowDayName
+    ), [jadwalList, guruData, tomorrowDayName]);
+
+  const tomorrowAbsRecord = useMemo(() =>
+    absensiList.find((a) => (a.guruId === guruData.id || a.guruNama === guruData.nama) && a.tanggal === tomorrowDateStr),
+    [absensiList, guruData, tomorrowDateStr]);
+
+  // ── Stats Bulan Ini ───────────────────────────────────────────────────────
+  const thisMonthStr = todayStr.slice(0, 7); // 'YYYY-MM'
+  const myMonthAbsensi = useMemo(() =>
+    absensiList.filter((a) =>
+      (a.guruId === guruData.id || a.guruNama === guruData.nama) && a.tanggal.startsWith(thisMonthStr)
+    ), [absensiList, guruData, thisMonthStr]);
+
+  const statsMonth = useMemo(() => ({
+    hadir: myMonthAbsensi.filter((a) => a.status === 'hadir_tepat_waktu').length,
+    terlambat: myMonthAbsensi.filter((a) => a.status === 'terlambat').length,
+    izinSakit: myMonthAbsensi.filter((a) => a.status === 'izin' || a.status === 'sakit').length,
+    alfa: myMonthAbsensi.filter((a) => a.status === 'alfa').length,
+    total: myMonthAbsensi.length,
+  }), [myMonthAbsensi]);
+
+  // ── Rekap Minggu Ini ──────────────────────────────────────────────────────
+  const weekDays = useMemo(() => {
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0=Sun
+    // Senin = index 1, offset from Sunday
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayOffset);
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const dateStr = d.toISOString().split('T')[0];
+      const dayName = ['Ahad', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][d.getDay()];
+      const isPast = d <= today;
+      const isToday = dateStr === todayStr;
+      const absenRec = absensiList.find((a) =>
+        (a.guruId === guruData.id || a.guruNama === guruData.nama) && a.tanggal === dateStr
+      );
+      return { dateStr, dayName, isPast, isToday, absenRec, d };
+    });
+  }, [absensiList, guruData, todayStr]);
+
+  // ── Handler: Konfirmasi Jadwal Besok dari Beranda ─────────────────────────
+  const markTomorrowConfirmed = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('jadwal_besok_confirmed_date', tomorrowDateStr);
+      window.dispatchEvent(new Event('jadwal_besok_confirmed'));
+    }
+  };
+
+  const handleConfirmHadirBesok = () => {
+    markTomorrowConfirmed();
+    setShowSuccess(`✓ Terima kasih! Anda telah mengonfirmasi kehadiran untuk jadwal besok (${tomorrowDayName}).`);
+    setTimeout(() => setShowSuccess(null), 3500);
+  };
+
+  const handleSubmitTomorrowIzin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tomorrowAlasan.trim()) { alert('Mohon tuliskan alasan.'); return; }
+    setIsSubmittingTomorrow(true);
+    const recordId = tomorrowAbsRecord?.id || `abs-izin-${tomorrowDateStr}-${guruData.id}`;
+    const newRecord: AbsensiRecord = {
+      id: recordId,
+      guruId: guruData.id,
+      guruNama: guruData.nama,
+      tanggal: tomorrowDateStr,
+      jamMasuk: null,
+      jamPulang: null,
+      status: tomorrowIzinType,
+      keterlambatan: 0,
+      lokasiValid: true,
+      keterangan: `Konfirmasi ${tomorrowIzinType === 'izin' ? 'Izin' : 'Sakit'}: ${tomorrowAlasan.trim()}`,
+      dibuatPada: new Date().toISOString(),
+    };
+    const updated = absensiList.filter((a) => a.id !== recordId);
+    updated.unshift(newRecord);
+    setAbsensiList(updated);
+    mockAbsensi.length = 0; mockAbsensi.push(...updated);
+    savePersistedAbsensi(updated);
+    try {
+      const { upsertAbsensiSupabase } = await import('@/lib/supabaseClient');
+      await upsertAbsensiSupabase(newRecord);
+    } catch (err) {}
+    setIsSubmittingTomorrow(false);
+    setShowTomorrowIzinModal(false);
+    setTomorrowAlasan('');
+    markTomorrowConfirmed();
+    setShowSuccess(`✓ Konfirmasi ${tomorrowIzinType === 'izin' ? 'Izin' : 'Sakit'} untuk jadwal besok berhasil dikirim.`);
+    setTimeout(() => setShowSuccess(null), 3500);
+  };
 
   // Live Clock
   useEffect(() => {
@@ -969,6 +1103,53 @@ export default function BerandaPage() {
         </div>
       )}
 
+      {/* MODAL IZIN / SAKIT JADWAL BESOK */}
+      {showTomorrowIzinModal && (
+        <div className="modal-overlay" onClick={() => setShowTomorrowIzinModal(false)}>
+          <div className="modal" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: 'var(--font-size-base)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
+                Konfirmasi Ketidakhadiran Besok
+              </h3>
+            </div>
+            <form onSubmit={handleSubmitTomorrowIzin}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                <div style={{ padding: '10px 12px', background: 'var(--color-surface-2)', borderRadius: 'var(--radius-md)', fontSize: 12 }}>
+                  <div style={{ fontWeight: 700, color: 'var(--color-primary)' }}>
+                    {tomorrowDayName}, {tomorrowDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </div>
+                  <div style={{ color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                    {tomorrowSchedules.map((s) => `${s.mataPelajaran} (${s.jamMulai}–${s.jamSelesai})`).join(', ')}
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 700 }}>Kategori</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <button type="button" className={`btn btn-sm ${tomorrowIzinType === 'izin' ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => setTomorrowIzinType('izin')} style={{ fontWeight: 700 }}>Izin</button>
+                    <button type="button" className={`btn btn-sm ${tomorrowIzinType === 'sakit' ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => setTomorrowIzinType('sakit')} style={{ fontWeight: 700 }}>Sakit</button>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 700 }}>Alasan *</label>
+                  <textarea className="form-input" rows={3}
+                    placeholder="Contoh: Mengikuti acara keluarga / Sakit demam..."
+                    value={tomorrowAlasan} onChange={(e) => setTomorrowAlasan(e.target.value)} required />
+                </div>
+              </div>
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowTomorrowIzinModal(false)}>Batal</button>
+                <button type="submit" className="btn btn-primary btn-sm" disabled={isSubmittingTomorrow}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
+                  <Send size={13} /> {isSubmittingTomorrow ? 'Mengirim...' : 'Kirim Konfirmasi'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* HERO HEADER */}
       <div className="beranda-hero">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-4)' }}>
@@ -977,9 +1158,51 @@ export default function BerandaPage() {
             <p className="beranda-name">{guruData.nama.split(',')[0]}</p>
             <p style={{ fontSize: 'var(--font-size-xs)', opacity: 0.8, marginTop: 2 }}>{guruData.jabatan}</p>
           </div>
+          {/* NIP badge kecil */}
+          <div style={{
+            background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)',
+            borderRadius: 'var(--radius-full)', padding: '4px 10px',
+            fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.9)',
+            border: '1px solid rgba(255,255,255,0.2)',
+          }}>
+            {guruData.nip || guruData.statusKepegawaian || 'Tenaga Ajar'}
+          </div>
         </div>
         <div className="beranda-clock">{currentTime || '--:--:--'}</div>
         <div className="beranda-date">{currentDate} WITA</div>
+      </div>
+
+      {/* ── STATS STRIP — REKAP BULAN INI ── */}
+      <div style={{ padding: '0 var(--space-4)', marginTop: 'var(--space-4)', marginBottom: 'var(--space-3)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 'var(--space-2)' }}>
+          <TrendingUp size={14} color="var(--color-primary)" />
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Rekap Kehadiran — {new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
+          </span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+          {[
+            { label: 'Tepat Waktu', value: statsMonth.hadir, color: '#10B981', bg: '#F0FDF4', border: '#86EFAC', icon: '✓' },
+            { label: 'Terlambat', value: statsMonth.terlambat, color: '#F59E0B', bg: '#FFFBEB', border: '#FDE68A', icon: '⏱' },
+            { label: 'Izin/Sakit', value: statsMonth.izinSakit, color: '#3B82F6', bg: '#EFF6FF', border: '#BFDBFE', icon: '📋' },
+            { label: 'Alfa', value: statsMonth.alfa, color: '#EF4444', bg: '#FEF2F2', border: '#FCA5A5', icon: '✗' },
+          ].map(({ label, value, color, bg, border, icon }) => (
+            <div key={label} style={{
+              background: bg, border: `1px solid ${border}`,
+              borderRadius: 'var(--radius-md)', padding: '10px 8px',
+              textAlign: 'center',
+              transition: 'transform 0.15s ease',
+            }}>
+              <div style={{ fontSize: 18, fontWeight: 900, color, lineHeight: 1 }}>{value}</div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color, marginTop: 2, lineHeight: 1.2 }}>{label}</div>
+            </div>
+          ))}
+        </div>
+        {statsMonth.total === 0 && (
+          <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', textAlign: 'center', marginTop: 6 }}>
+            Belum ada data absensi bulan ini
+          </div>
+        )}
       </div>
 
       {/* ─── KONDISI ABSENSI OTOMATIS BERDASARKAN JADWAL & WAKTU ─── */}
@@ -1494,6 +1717,80 @@ export default function BerandaPage() {
         </>
       )}
 
+
+      {/* ── CARD JADWAL BESOK ── */}
+      {tomorrowSchedules.length > 0 && (
+        <div style={{ padding: '0 var(--space-4)', marginBottom: 'var(--space-4)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 'var(--space-2)' }}>
+            <Calendar size={14} color="var(--color-primary)" />
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Jadwal Besok
+            </span>
+          </div>
+          <div className="card" style={{
+            border: '1.5px solid var(--color-primary)',
+            background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-surface) 100%)',
+          }}>
+            <div style={{ padding: '14px 16px' }}>
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 'var(--font-size-sm)', color: 'var(--color-primary)' }}>
+                    {tomorrowDayName}, {tomorrowDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                    {tomorrowSchedules.length} sesi mengajar
+                  </div>
+                </div>
+                {tomorrowAbsRecord && (tomorrowAbsRecord.status === 'izin' || tomorrowAbsRecord.status === 'sakit') ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span className="badge badge-info" style={{ fontWeight: 700, fontSize: 10 }}>
+                      ✓ {tomorrowAbsRecord.status === 'izin' ? 'Izin' : 'Sakit'} Terkonfirmasi
+                    </span>
+                    <button type="button" className="btn btn-ghost btn-sm"
+                      onClick={() => { setTomorrowIzinType(tomorrowAbsRecord.status as any); setTomorrowAlasan(tomorrowAbsRecord.keterangan.replace(/Konfirmasi (Izin|Sakit): /, '')); setShowTomorrowIzinModal(true); }}
+                      style={{ fontSize: 10, padding: '3px 7px' }}>
+                      <Edit2 size={11} /> Ubah
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Daftar sesi besok */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                {tomorrowSchedules.map((s) => (
+                  <div key={s.id} style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '8px 10px', background: 'var(--color-surface)',
+                    borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border-light)',
+                    fontSize: 12,
+                  }}>
+                    <span style={{ fontWeight: 700 }}>{s.mataPelajaran}</span>
+                    <span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{s.jamMulai}–{s.jamSelesai} WITA</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Tombol konfirmasi — hanya jika belum ada respons */}
+              {!(tomorrowAbsRecord && (tomorrowAbsRecord.status === 'izin' || tomorrowAbsRecord.status === 'sakit')) && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" className="btn btn-primary btn-sm"
+                    onClick={handleConfirmHadirBesok}
+                    style={{ flex: 1, fontWeight: 700, fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                    <CheckCircle2 size={13} /> Saya Siap Hadir
+                  </button>
+                  <button type="button" className="btn btn-outline btn-sm"
+                    onClick={() => { setTomorrowIzinType('izin'); setTomorrowAlasan(''); setShowTomorrowIzinModal(true); }}
+                    style={{ flex: 1, borderColor: 'var(--color-danger)', color: 'var(--color-danger)', fontWeight: 700, fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                    <XCircle size={13} /> Tidak Bisa Hadir
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* JADWAL MENGAJAR HARI INI */}
       <div style={{ padding: '0 var(--space-4)', marginBottom: 'var(--space-5)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
@@ -1663,45 +1960,130 @@ export default function BerandaPage() {
         )}
       </div>
 
+      {/* ── REKAP KEHADIRAN MINGGU INI ── */}
+      <div style={{ padding: '0 var(--space-4)', marginBottom: 'var(--space-5)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 'var(--space-2)' }}>
+          <Award size={14} color="var(--color-primary)" />
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Rekap Minggu Ini
+          </span>
+        </div>
+        <div className="card">
+          <div style={{ padding: '12px 14px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 }}>
+              {weekDays.map(({ dayName, isToday, isPast, absenRec }) => {
+                const shortDay = dayName.slice(0, 3);
+                let dotColor = '#E5E7EB'; // default: belum / mendatang
+                let bgColor = 'var(--color-surface-2)';
+                let textColor = 'var(--color-text-tertiary)';
+                let statusLabel = '—';
+
+                if (isPast && absenRec) {
+                  const s = absenRec.status;
+                  if (s === 'hadir_tepat_waktu') { dotColor = '#10B981'; bgColor = '#F0FDF4'; textColor = '#065F46'; statusLabel = '✓'; }
+                  else if (s === 'terlambat') { dotColor = '#F59E0B'; bgColor = '#FFFBEB'; textColor = '#92400E'; statusLabel = '⏱'; }
+                  else if (s === 'izin' || s === 'sakit') { dotColor = '#3B82F6'; bgColor = '#EFF6FF'; textColor = '#1E40AF'; statusLabel = '📋'; }
+                  else if (s === 'alfa') { dotColor = '#EF4444'; bgColor = '#FEF2F2'; textColor = '#991B1B'; statusLabel = '✗'; }
+                } else if (isPast && !absenRec) {
+                  // Hari kerja sudah lewat tapi tidak ada jadwal → hari libur/tidak ada jadwal
+                  statusLabel = '○';
+                }
+
+                return (
+                  <div key={dayName} style={{
+                    textAlign: 'center', padding: '8px 4px',
+                    borderRadius: 'var(--radius-md)',
+                    background: isToday ? 'var(--color-primary)' : bgColor,
+                    border: isToday ? 'none' : '1px solid var(--color-border-light)',
+                    transition: 'all 0.15s ease',
+                  }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: isToday ? 'rgba(255,255,255,0.8)' : 'var(--color-text-tertiary)', marginBottom: 2 }}>
+                      {shortDay}
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 900, color: isToday ? '#fff' : textColor, lineHeight: 1 }}>
+                      {isToday ? '•' : statusLabel}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
+              {[
+                { label: 'Hadir', color: '#10B981' }, { label: 'Terlambat', color: '#F59E0B' },
+                { label: 'Izin/Sakit', color: '#3B82F6' }, { label: 'Alfa', color: '#EF4444' },
+              ].map(({ label, color }) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--color-text-tertiary)' }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: color, display: 'inline-block' }} />
+                  {label}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* KEGIATAN YAYASAN */}
       <div style={{ padding: '0 var(--space-4)', marginBottom: 'var(--space-6)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
-          <h2 style={{ fontSize: 'var(--font-size-base)', fontWeight: 700 }}>Kegiatan Yayasan</h2>
-          <Link href="/guru/kegiatan" style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: 2, fontWeight: 600 }}>
-            Lihat Semua <ChevronRight size={14} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Star size={14} color="var(--color-primary)" />
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Kegiatan Yayasan
+            </span>
+          </div>
+          <Link href="/guru/kegiatan" style={{ fontSize: 11, color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: 2, fontWeight: 600 }}>
+            Lihat Semua <ChevronRight size={13} />
           </Link>
         </div>
 
-        {mockKegiatan.length === 0 ? (
+        {kegiatanList.length === 0 ? (
           <div className="card">
-            <div className="empty-state" style={{ padding: 'var(--space-4)' }}>
-              <div className="empty-state-desc" style={{ fontSize: 'var(--font-size-xs)' }}>Belum ada agenda kegiatan yayasan.</div>
+            <div style={{ padding: 'var(--space-4)', textAlign: 'center' }}>
+              <Users size={22} color="var(--color-text-tertiary)" style={{ margin: '0 auto 6px' }} />
+              <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', fontWeight: 500 }}>Belum ada agenda kegiatan yayasan.</div>
             </div>
           </div>
         ) : (
-          mockKegiatan.slice(0, 2).map((k) => (
-            <div key={k.id} className="card" style={{ marginBottom: 'var(--space-3)' }}>
-              <div className="card-body" style={{ padding: 'var(--space-4)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
-                      <span className={`badge ${k.status === 'berlangsung' ? 'badge-success' : 'badge-primary'}`}>
-                        {k.status === 'berlangsung' ? 'Berlangsung' : 'Mendatang'}
-                      </span>
-                      {k.wajib && <span className="badge badge-danger">Wajib</span>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            {kegiatanList.filter((k) => k.status !== 'selesai').slice(0, 3).map((k) => {
+              const myPartisipasi = mockPartisipasi.find((p) => p.kegiatanId === k.id && (p.guruId === guruData.id || p.guruNama === guruData.nama));
+              const responLabel = myPartisipasi?.respons === 'hadir' ? '✓ Hadir' : myPartisipasi?.respons === 'tidak_hadir' ? '✗ Tidak Hadir' : null;
+              return (
+                <div key={k.id} className="card" style={{
+                  borderLeft: k.status === 'berlangsung' ? '4px solid #10B981' : k.wajib ? '4px solid #EF4444' : '4px solid var(--color-primary)',
+                }}>
+                  <div style={{ padding: '12px 14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4, flexWrap: 'wrap' }}>
+                          <span className={`badge ${k.status === 'berlangsung' ? 'badge-success' : 'badge-primary'}`} style={{ fontSize: 10 }}>
+                            {k.status === 'berlangsung' ? '🟢 Berlangsung' : '📅 Mendatang'}
+                          </span>
+                          {k.wajib && <span className="badge badge-danger" style={{ fontSize: 10 }}>Wajib</span>}
+                          {responLabel && <span className="badge badge-neutral" style={{ fontSize: 10, fontWeight: 700 }}>{responLabel}</span>}
+                        </div>
+                        <div style={{ fontWeight: 700, fontSize: 'var(--font-size-sm)' }}>{k.nama}</div>
+                        <div style={{ display: 'flex', gap: 10, marginTop: 4, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <Calendar size={11} />
+                            {new Date(k.tanggalMulai || k.tanggal || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} • {k.jamMulai} WITA
+                          </span>
+                          {k.lokasi && (
+                            <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                              <MapPin size={11} /> {k.lokasi}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <Link href="/guru/kegiatan" className="btn btn-secondary btn-sm" style={{ padding: '5px 10px', fontSize: 11, flexShrink: 0 }}>
+                        {myPartisipasi ? 'Lihat' : 'Respons'}
+                      </Link>
                     </div>
-                    <h3 style={{ fontSize: 'var(--font-size-sm)', fontWeight: 700, marginTop: 'var(--space-2)' }}>{k.nama}</h3>
-                    <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', marginTop: 2 }}>
-                      {new Date(k.tanggalMulai || k.tanggal || '').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', timeZone: 'Asia/Makassar' })} • {k.jamMulai} WITA
-                    </p>
                   </div>
-                  <Link href="/guru/kegiatan" className="btn btn-secondary btn-sm" style={{ padding: '6px 10px', fontSize: 11 }}>
-                    Respons
-                  </Link>
                 </div>
-              </div>
-            </div>
-          ))
+              );
+            })}
+          </div>
         )}
       </div>
     </>
