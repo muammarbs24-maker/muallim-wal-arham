@@ -323,6 +323,20 @@ export async function upsertAbsensiSupabase(record: AbsensiRecord): Promise<bool
   }
 }
 
+export async function deleteAbsensiSupabase(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('absensi_records')
+      .delete()
+      .eq('id', id);
+    return !error;
+  } catch (err) {
+    console.error('Error deleteAbsensiSupabase:', err);
+    return false;
+  }
+}
+
+
 /**
  * 5. APP SETTINGS SERVICE
  */

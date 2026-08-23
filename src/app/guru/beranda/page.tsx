@@ -69,6 +69,15 @@ export default function BerandaPage() {
   const [tomorrowAlasan, setTomorrowAlasan] = useState('');
   const [showTomorrowIzinModal, setShowTomorrowIzinModal] = useState(false);
   const [isSubmittingTomorrow, setIsSubmittingTomorrow] = useState(false);
+  // Apakah guru sudah konfirmasi "Siap Hadir" untuk besok (persist di localStorage)
+  const [tomorrowHadirConfirmed, setTomorrowHadirConfirmed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const saved = localStorage.getItem('jadwal_besok_hadir_confirmed_date');
+    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    return saved === tomorrowStr;
+  });
+
 
   // Refs untuk hindari stale closure di interval GPS
   const sessionsMapRef = useRef(sessionsMap);
@@ -333,7 +342,12 @@ export default function BerandaPage() {
 
   const handleConfirmHadirBesok = () => {
     markTomorrowConfirmed();
-    setShowSuccess(`✓ Terima kasih! Anda telah mengonfirmasi kehadiran untuk jadwal besok (${tomorrowDayName}).`);
+    // Persist konfirmasi hadir besok
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('jadwal_besok_hadir_confirmed_date', tomorrowDateStr);
+    }
+    setTomorrowHadirConfirmed(true);
+    setShowSuccess(`✓ Terima kasih! Kehadiran Anda untuk jadwal besok (${tomorrowDayName}) sudah dikonfirmasi.`);
     setTimeout(() => setShowSuccess(null), 3500);
   };
 
@@ -364,6 +378,13 @@ export default function BerandaPage() {
       const { upsertAbsensiSupabase } = await import('@/lib/supabaseClient');
       await upsertAbsensiSupabase(newRecord);
     } catch (err) {}
+    
+    // Clear ready confirmed status from localStorage since it's now izin/sakit
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('jadwal_besok_hadir_confirmed_date');
+    }
+    setTomorrowHadirConfirmed(false);
+    
     setIsSubmittingTomorrow(false);
     setShowTomorrowIzinModal(false);
     setTomorrowAlasan('');
@@ -371,6 +392,35 @@ export default function BerandaPage() {
     setShowSuccess(`✓ Konfirmasi ${tomorrowIzinType === 'izin' ? 'Izin' : 'Sakit'} untuk jadwal besok berhasil dikirim.`);
     setTimeout(() => setShowSuccess(null), 3500);
   };
+
+  const handleCancelIzinTomorrow = async () => {
+    if (!tomorrowAbsRecord) return;
+    setIsSubmittingTomorrow(true);
+    
+    const updated = absensiList.filter((a) => a.id !== tomorrowAbsRecord.id);
+    setAbsensiList(updated);
+    mockAbsensi.length = 0; mockAbsensi.push(...updated);
+    savePersistedAbsensi(updated);
+    
+    try {
+      const { deleteAbsensiSupabase } = await import('@/lib/supabaseClient');
+      await deleteAbsensiSupabase(tomorrowAbsRecord.id);
+    } catch (err) {}
+    
+    // Set status to Siap Hadir
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('jadwal_besok_hadir_confirmed_date', tomorrowDateStr);
+    }
+    setTomorrowHadirConfirmed(true);
+    
+    setIsSubmittingTomorrow(false);
+    setShowTomorrowIzinModal(false);
+    setTomorrowAlasan('');
+    markTomorrowConfirmed();
+    setShowSuccess("✓ Ketidakhadiran dibatalkan. Status diubah menjadi Siap Hadir.");
+    setTimeout(() => setShowSuccess(null), 3500);
+  };
+
 
   // Live Clock
   useEffect(() => {
@@ -1154,13 +1204,23 @@ export default function BerandaPage() {
                     value={tomorrowAlasan} onChange={(e) => setTomorrowAlasan(e.target.value)} required />
                 </div>
               </div>
-              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowTomorrowIzinModal(false)}>Batal</button>
-                <button type="submit" className="btn btn-primary btn-sm" disabled={isSubmittingTomorrow}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
-                  <Send size={13} /> {isSubmittingTomorrow ? 'Mengirim...' : 'Kirim Konfirmasi'}
-                </button>
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                {tomorrowAbsRecord ? (
+                  <button type="button" className="btn btn-outline btn-sm"
+                    onClick={handleCancelIzinTomorrow} disabled={isSubmittingTomorrow}
+                    style={{ borderColor: '#10B981', color: '#16A34A', fontWeight: 700, fontSize: 11 }}>
+                    Ubah ke Siap Hadir
+                  </button>
+                ) : <div />}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowTomorrowIzinModal(false)}>Batal</button>
+                  <button type="submit" className="btn btn-primary btn-sm" disabled={isSubmittingTomorrow}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
+                    <Send size={13} /> {isSubmittingTomorrow ? 'Mengirim...' : 'Kirim Konfirmasi'}
+                  </button>
+                </div>
               </div>
+
             </form>
           </div>
         </div>
@@ -1743,52 +1803,75 @@ export default function BerandaPage() {
               Jadwal Besok
             </span>
           </div>
-          <div className="card" style={{
-            border: '1.5px solid var(--color-primary)',
-            background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-surface) 100%)',
-          }}>
-            <div style={{ padding: '14px 16px' }}>
-              {/* Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 'var(--font-size-sm)', color: 'var(--color-primary)' }}>
-                    {tomorrowDayName}, {tomorrowDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2 }}>
-                    {tomorrowSchedules.length} sesi mengajar
+
+          {tomorrowHadirConfirmed || (tomorrowAbsRecord && (tomorrowAbsRecord.status === 'izin' || tomorrowAbsRecord.status === 'sakit')) ? (
+            /* TAMPILAN RINGKAS SETELAH DIKONFIRMASI */
+            <div className="card" style={{
+              border: tomorrowAbsRecord ? '1px solid #BFDBFE' : '1px solid #86EFAC',
+              background: tomorrowAbsRecord ? '#EFF6FF' : '#F0FDF4',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: 'none'
+            }}>
+              <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
+                  <CheckCircle2 size={16} color={tomorrowAbsRecord ? '#3B82F6' : '#16A34A'} />
+                  <span style={{ fontWeight: 600, color: tomorrowAbsRecord ? '#1E40AF' : '#15803D' }}>
+                    Jadwal Besok ({tomorrowDayName}): Anda mengonfirmasi <strong>{tomorrowAbsRecord ? (tomorrowAbsRecord.status === 'izin' ? 'Izin' : 'Sakit') : 'Siap Hadir'}</strong>
+                  </span>
+                </div>
+                <button type="button" className="btn btn-ghost btn-sm"
+                  onClick={() => {
+                    if (tomorrowAbsRecord) {
+                      setTomorrowIzinType(tomorrowAbsRecord.status as any);
+                      setTomorrowAlasan(tomorrowAbsRecord.keterangan.replace(/Konfirmasi (Izin|Sakit): /, ''));
+                      setShowTomorrowIzinModal(true);
+                    } else {
+                      if (typeof window !== 'undefined') {
+                        localStorage.removeItem('jadwal_besok_hadir_confirmed_date');
+                      }
+                      setTomorrowHadirConfirmed(false);
+                    }
+                  }}
+                  style={{ fontSize: 11, padding: '4px 8px', height: 'auto', color: tomorrowAbsRecord ? '#1E40AF' : '#15803D', display: 'flex', alignItems: 'center', gap: 3, fontWeight: 700 }}>
+                  <Edit2 size={11} /> Ubah
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* TAMPILAN PENUH JIKA BELUM DIKONFIRMASI */
+            <div className="card" style={{
+              border: '1.5px solid var(--color-primary)',
+              background: 'linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-surface) 100%)',
+            }}>
+              <div style={{ padding: '14px 16px' }}>
+                {/* Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 'var(--font-size-sm)', color: 'var(--color-primary)' }}>
+                      {tomorrowDayName}, {tomorrowDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                      {tomorrowSchedules.length} sesi mengajar
+                    </div>
                   </div>
                 </div>
-                {tomorrowAbsRecord && (tomorrowAbsRecord.status === 'izin' || tomorrowAbsRecord.status === 'sakit') ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span className="badge badge-info" style={{ fontWeight: 700, fontSize: 10 }}>
-                      ✓ {tomorrowAbsRecord.status === 'izin' ? 'Izin' : 'Sakit'} Terkonfirmasi
-                    </span>
-                    <button type="button" className="btn btn-ghost btn-sm"
-                      onClick={() => { setTomorrowIzinType(tomorrowAbsRecord.status as any); setTomorrowAlasan(tomorrowAbsRecord.keterangan.replace(/Konfirmasi (Izin|Sakit): /, '')); setShowTomorrowIzinModal(true); }}
-                      style={{ fontSize: 10, padding: '3px 7px' }}>
-                      <Edit2 size={11} /> Ubah
-                    </button>
-                  </div>
-                ) : null}
-              </div>
 
-              {/* Daftar sesi besok */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
-                {tomorrowSchedules.map((s) => (
-                  <div key={s.id} style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    padding: '8px 10px', background: 'var(--color-surface)',
-                    borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border-light)',
-                    fontSize: 12,
-                  }}>
-                    <span style={{ fontWeight: 700 }}>{s.mataPelajaran}</span>
-                    <span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{s.jamMulai}–{s.jamSelesai} WITA</span>
-                  </div>
-                ))}
-              </div>
+                {/* Daftar sesi besok */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                  {tomorrowSchedules.map((s) => (
+                    <div key={s.id} style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '8px 10px', background: 'var(--color-surface)',
+                      borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border-light)',
+                      fontSize: 12,
+                    }}>
+                      <span style={{ fontWeight: 700 }}>{s.mataPelajaran}</span>
+                      <span style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{s.jamMulai}–{s.jamSelesai} WITA</span>
+                    </div>
+                  ))}
+                </div>
 
-              {/* Tombol konfirmasi — hanya jika belum ada respons */}
-              {!(tomorrowAbsRecord && (tomorrowAbsRecord.status === 'izin' || tomorrowAbsRecord.status === 'sakit')) && (
+                {/* Tombol konfirmasi */}
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button type="button" className="btn btn-primary btn-sm"
                     onClick={handleConfirmHadirBesok}
@@ -1801,11 +1884,12 @@ export default function BerandaPage() {
                     <XCircle size={13} /> Tidak Bisa Hadir
                   </button>
                 </div>
-              )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
+
 
       {/* JADWAL MENGAJAR HARI INI */}
       <div style={{ padding: '0 var(--space-4)', marginBottom: 'var(--space-5)' }}>
