@@ -7,15 +7,16 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, Phone, Mail, MapPin, Calendar, TrendingUp, Star, Clock,
-  Edit3, Trash2, UserX, UserCheck, AlertTriangle, CheckCircle2, X, Save
+  Edit3, Trash2, UserX, UserCheck, AlertTriangle, CheckCircle2, X, Save,
+  DollarSign, Camera, Check, Eye
 } from 'lucide-react';
 import {
   mockGuru, mockAbsensi, hitungSkorKedisiplinan, hitungPoinPartisipasi,
-  loadPersistedData, savePersistedGuru
+  loadPersistedData, savePersistedGuru, mockSettings
 } from '@/lib/mockData';
-import { getInitials, getStatusLabel, getTodayStringWITA } from '@/lib/utils';
+import { getInitials, getStatusLabel, getTodayStringWITA, formatRupiah, formatJamLengkap } from '@/lib/utils';
 import { sendTeacherReactivatedEmail, sendPermanentStatusCongratsEmail } from '@/lib/emailService';
-import type { Guru, AbsensiRecord, AttendanceStatus } from '@/types';
+import type { Guru, AbsensiRecord, AttendanceStatus, AppSettings } from '@/types';
 
 export default function AdminGuruDetailPage() {
   const params = useParams();
@@ -24,6 +25,7 @@ export default function AdminGuruDetailPage() {
 
   const [guru, setGuru] = useState<Guru | null>(null);
   const [absensiGuru, setAbsensiGuru] = useState<AbsensiRecord[]>([]);
+  const [appSettings, setAppSettings] = useState<AppSettings>(mockSettings);
   const [isLoading, setIsLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -167,7 +169,7 @@ export default function AdminGuruDetailPage() {
     }
 
     // 2. Fetch fresh dari Supabase
-    import('@/lib/supabaseClient').then(({ getGurusSupabase, getAbsensiSupabase }) => {
+    import('@/lib/supabaseClient').then(({ getGurusSupabase, getAbsensiSupabase, getAppSettingsSupabase }) => {
       getGurusSupabase().then((gurus) => {
         let currentMatch = foundTeacher;
         if (gurus && gurus.length > 0) {
@@ -207,6 +209,13 @@ export default function AdminGuruDetailPage() {
       }).catch(() => {
         setIsLoading(false);
       });
+
+      getAppSettingsSupabase().then((s) => {
+        if (s) {
+          setAppSettings(s);
+          Object.assign(mockSettings, s);
+        }
+      }).catch(() => {});
     }).catch(() => {
       setIsLoading(false);
     });
@@ -241,6 +250,27 @@ export default function AdminGuruDetailPage() {
 
   const skor = hitungSkorKedisiplinan(guru.id, undefined, undefined, absensiGuru);
   const poin = hitungPoinPartisipasi(guru.id);
+
+  // Akumulasi Jam Mengajar & Honor Sesi Bulan Ini
+  const now = new Date();
+  const currentYearStr = String(now.getFullYear());
+  const currentMonthStr = String(now.getMonth() + 1).padStart(2, '0');
+
+  const monthlyAbsensi = absensiGuru.filter((a) => {
+    const [y, m] = a.tanggal.split('-');
+    return y === currentYearStr && m === currentMonthStr && (a.status === 'hadir_tepat_waktu' || a.status === 'terlambat');
+  });
+
+  const totalJamMengajarBulanIni = Number(
+    monthlyAbsensi.reduce((sum, a) => {
+      if (typeof a.jamDibayar === 'number') return sum + a.jamDibayar;
+      if (typeof a.durasiMenit === 'number') return sum + Number((a.durasiMenit / 60).toFixed(2));
+      return sum + 2;
+    }, 0).toFixed(2)
+  );
+
+  const tarifPerJam = appSettings.tarifPerJam || 30000;
+  const estimasiHonorBulanIni = Math.round(totalJamMengajarBulanIni * tarifPerJam);
 
   const gradeColor = skor.grade === 'Sangat Baik' ? '#1B6B4A' : skor.grade === 'Baik' ? '#1D4ED8' : skor.grade === 'Cukup' ? '#B45309' : '#B91C1C';
 
@@ -676,6 +706,65 @@ export default function AdminGuruDetailPage() {
               </div>
             </div>
 
+            {/* 2. Honor & Jam Mengajar Card */}
+            <div className="card" style={{
+              background: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)',
+              border: '1.5px solid #86EFAC',
+              borderRadius: 'var(--radius-lg)',
+              overflow: 'hidden'
+            }}>
+              <div className="card-header" style={{ padding: '14px 16px', borderBottom: '1px solid rgba(22, 163, 74, 0.15)' }}>
+                <span style={{ fontWeight: 800, fontSize: 'var(--font-size-sm)', display: 'flex', alignItems: 'center', gap: 6, color: '#166534' }}>
+                  <DollarSign size={16} color="#15803D" /> Honor Mengajar Bulan Ini
+                </span>
+                <span className="badge badge-success" style={{ fontWeight: 800 }}>
+                  Tarif: {formatRupiah(tarifPerJam)}/jam
+                </span>
+              </div>
+              <div className="card-body" style={{ padding: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                  <div style={{
+                    padding: '12px 10px',
+                    borderRadius: 10,
+                    background: 'white',
+                    border: '1px solid #BBF7D0',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: '#166534', lineHeight: 1.2 }}>
+                      {formatJamLengkap(totalJamMengajarBulanIni)}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', fontWeight: 700, marginTop: 4 }}>
+                      Total Jam Mengajar
+                    </div>
+                    <div style={{ fontSize: 10.5, color: '#15803D', marginTop: 2, fontWeight: 600 }}>
+                      {monthlyAbsensi.length} sesi hadir
+                    </div>
+                  </div>
+
+                  <div style={{
+                    padding: '12px 10px',
+                    borderRadius: 10,
+                    background: 'white',
+                    border: '1px solid #BBF7D0',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: '#15803D', lineHeight: 1.2 }}>
+                      {formatRupiah(estimasiHonorBulanIni)}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', fontWeight: 700, marginTop: 4 }}>
+                      Estimasi Honor
+                    </div>
+                    <div style={{ fontSize: 10.5, color: '#15803D', marginTop: 2, fontWeight: 600 }}>
+                      bulan berjalan
+                    </div>
+                  </div>
+                </div>
+                <p style={{ fontSize: 11, color: '#166534', margin: 0, lineHeight: 1.4 }}>
+                  💡 <em>Honor dihitung murni berdasarkan jam mengajar riil yang diperoleh dari presensi masuk & pulang dengan batas toleransi keterlambatan {appSettings.batasKeterlambatan || 5} menit.</em>
+                </p>
+              </div>
+            </div>
+
             {/* 2. Ringkasan Performa Card */}
             <div className="card" style={{ border: '1px solid var(--color-border)' }}>
               <div className="card-header" style={{ padding: '14px 16px', borderBottom: '1px solid var(--color-border-light)' }}>
@@ -879,47 +968,58 @@ export default function AdminGuruDetailPage() {
                     <th>Jam Masuk</th>
                     <th>Jam Pulang</th>
                     <th>Status</th>
-                    <th>Keterlambatan</th>
+                    <th style={{ textAlign: 'right' }}>Jam Mengajar</th>
+                    <th style={{ textAlign: 'right' }}>Honor</th>
                     <th>Keterangan</th>
                     <th style={{ textAlign: 'center', width: 70 }}>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {absensiGuru.map((a) => (
-                    <tr key={a.id}>
-                      <td style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>
-                        {new Date(a.tanggal).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })}
-                      </td>
-                      <td>{a.jamMasuk ? `${a.jamMasuk} WITA` : '—'}</td>
-                      <td>{a.jamPulang ? `${a.jamPulang} WITA` : '—'}</td>
-                      <td>
-                        <span className={`badge badge-${statusColors[a.status]}`}>
-                          {getStatusLabel(a.status)}
-                        </span>
-                      </td>
-                      <td>
-                        {a.keterlambatan > 0 ? (
-                          <span style={{ color: 'var(--color-warning)', fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>
-                            {a.keterlambatan} menit
+                  {absensiGuru.map((a) => {
+                    const durasiJam = typeof a.jamDibayar === 'number'
+                      ? a.jamDibayar
+                      : typeof a.durasiMenit === 'number'
+                      ? Number((a.durasiMenit / 60).toFixed(2))
+                      : a.jamMasuk ? 2 : 0;
+                    const honorSesi = typeof a.honorNominal === 'number'
+                      ? a.honorNominal
+                      : Math.round(durasiJam * tarifPerJam);
+
+                    return (
+                      <tr key={a.id}>
+                        <td style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>
+                          {new Date(a.tanggal).toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })}
+                        </td>
+                        <td>{a.jamMasuk ? `${a.jamMasuk} WITA` : '—'}</td>
+                        <td>{a.jamPulang ? `${a.jamPulang} WITA` : '—'}</td>
+                        <td>
+                          <span className={`badge badge-${statusColors[a.status]}`}>
+                            {getStatusLabel(a.status)}
                           </span>
-                        ) : '—'}
-                      </td>
-                      <td style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>
-                        {a.keterangan || '—'}
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm"
-                          onClick={() => handleOpenEditAbsensi(a)}
-                          style={{ padding: '4px 8px', color: 'var(--color-primary)' }}
-                          title="Edit Riwayat Absensi"
-                        >
-                          <Edit3 size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--color-primary)', fontSize: '12.5px' }}>
+                          {a.status === 'hadir_tepat_waktu' || a.status === 'terlambat' ? formatJamLengkap(durasiJam) : '—'}
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 800, color: '#15803D' }}>
+                          {a.status === 'hadir_tepat_waktu' || a.status === 'terlambat' ? formatRupiah(honorSesi) : '—'}
+                        </td>
+                        <td style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>
+                          {a.keterangan || '—'}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => handleOpenEditAbsensi(a)}
+                            style={{ padding: '4px 8px', color: 'var(--color-primary)' }}
+                            title="Edit Riwayat Absensi"
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {absensiGuru.length === 0 && (
                     <tr>
                       <td colSpan={7} style={{ textAlign: 'center', padding: '36px', color: 'var(--color-text-tertiary)' }}>

@@ -2,7 +2,7 @@
 // UTILITY FUNCTIONS — Mu'Allim Attendance
 // ============================================================
 
-import { AttendanceStatus, DayOfWeek } from '@/types';
+import { AttendanceStatus, DayOfWeek, AbsensiRecord } from '@/types';
 
 // ============================================================
 // WITA TIMEZONE HELPERS
@@ -382,3 +382,113 @@ export function generateNipYayasan(existing: number | Array<{ nip?: string } | s
   return `${prefix}${formattedNumber}`;
 }
 
+
+/**
+ * Menghitung jam mengajar riil, durasi menit, dan jam yang dibayar
+ * @param jamMulai Contoh "08:30"
+ * @param jamSelesai Contoh "10:30" (total jadwal = 120 menit)
+ * @param jamMasuk Contoh "08:35" (datang)
+ * @param jamPulang Contoh "10:30" (pulang)
+ * @param batasKeterlambatan Contoh 5 (menit)
+ */
+export function calculateActualTeachingHours(
+  jamMulai: string,
+  jamSelesai: string,
+  jamMasuk: string | null | undefined,
+  jamPulang: string | null | undefined,
+  batasKeterlambatan: number = 5
+): {
+  durasiMenit: number;
+  jamDibayar: number; // desimal (misal 1.83 atau 2.0)
+  formattedDuration: string; // misal "1 Jam 50 Menit" atau "2 Jam 00 Menit"
+  terlambatMenit: number;
+  isTermaklumi: boolean;
+} {
+  if (!jamMasuk) {
+    return { durasiMenit: 0, jamDibayar: 0, formattedDuration: '0 Menit', terlambatMenit: 0, isTermaklumi: false };
+  }
+
+  const startScheduleMins = timeToMinutes(jamMulai);
+  const endScheduleMins = timeToMinutes(jamSelesai);
+  const actualMasukMins = timeToMinutes(jamMasuk);
+  
+  // Jika belum absen pulang, gunakan estimasi jam selesai jadwal
+  const actualPulangMins = jamPulang ? timeToMinutes(jamPulang) : endScheduleMins;
+
+  // Hitung keterlambatan
+  const diffLate = Math.max(0, actualMasukMins - startScheduleMins);
+  const isTermaklumi = diffLate <= (batasKeterlambatan || 0);
+
+  // Jika datang tepat waktu atau terlambat <= toleransi -> dihitung mulai dari jamMulai jadwal
+  const recognizedStartMins = isTermaklumi ? startScheduleMins : actualMasukMins;
+  // Waktu selesai diakui tidak melebihi jam selesai jadwal sesi
+  const recognizedEndMins = Math.min(endScheduleMins, actualPulangMins);
+
+  const durasiMenit = Math.max(0, recognizedEndMins - recognizedStartMins);
+  const jamDibayar = Number((durasiMenit / 60).toFixed(2));
+
+  const hours = Math.floor(durasiMenit / 60);
+  const minutes = durasiMenit % 60;
+  const formattedDuration = `${hours} Jam ${minutes > 0 ? `${minutes} Menit` : '00 Menit'}`;
+
+  return {
+    durasiMenit,
+    jamDibayar,
+    formattedDuration,
+    terlambatMenit: diffLate,
+    isTermaklumi,
+  };
+}
+
+export function formatRupiah(nominal: number = 0): string {
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    maximumFractionDigits: 0,
+  }).format(nominal || 0);
+}
+
+/**
+ * Auto cleanup foto presensi yang telah diverifikasi (verified / rejected)
+ * setelah 1x24 jam (24 * 60 * 60 * 1000 ms).
+ * Foto yang masih pending (belum diverifikasi) TIDAK akan dihapus.
+ */
+export function cleanupExpiredVerifiedPhotos(records: AbsensiRecord[]): { updated: AbsensiRecord[]; cleanedCount: number } {
+  const now = Date.now();
+  const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+  let cleanedCount = 0;
+
+  const updated = records.map((record) => {
+    if (
+      record.fotoMasuk &&
+      (record.fotoMasukStatus === 'verified' || record.fotoMasukStatus === 'rejected') &&
+      record.fotoMasukVerifiedAt
+    ) {
+      const verifiedTime = new Date(record.fotoMasukVerifiedAt).getTime();
+      if (!isNaN(verifiedTime) && now - verifiedTime >= TWENTY_FOUR_HOURS_MS) {
+        cleanedCount++;
+        return {
+          ...record,
+          fotoMasuk: null, // Hapus foto untuk menghemat penyimpanan
+        };
+      }
+    }
+    return record;
+  });
+
+  return { updated, cleanedCount };
+}
+
+/**
+ * Format jam atau menit menjadi format lengkap "X Jam Y Menit", "X Jam", atau "Y Menit".
+ * Contoh: 18.5 jam -> "18 Jam 30 Menit", 2 jam -> "2 Jam", 0.75 jam -> "45 Menit"
+ */
+export function formatJamLengkap(jamOrMenit: number, isMenit: boolean = false): string {
+  const totalMenit = Math.round(isMenit ? jamOrMenit : jamOrMenit * 60);
+  if (totalMenit <= 0) return '0 Jam';
+  const jam = Math.floor(totalMenit / 60);
+  const menit = totalMenit % 60;
+  if (jam === 0) return `${menit} Menit`;
+  if (menit === 0) return `${jam} Jam`;
+  return `${jam} Jam ${menit} Menit`;
+}

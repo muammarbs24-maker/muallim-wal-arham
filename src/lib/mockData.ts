@@ -14,6 +14,7 @@ import type {
   SesiConfig,
   JadwalSesiEntry,
   TukarJadwalRequest,
+  SesiBooking,
 } from '@/types';
 
 // ============================================================
@@ -46,8 +47,57 @@ export const authConfig = {
 
 export const DEFAULT_GURU_PASSWORD = 'muallim123';
 
-// Daftar Guru Terdaftar
-export const mockGuru: Guru[] = [];
+// Daftar Guru Terdaftar (3 User Testing)
+export const mockGuru: Guru[] = [
+  {
+    id: 'guru-1',
+    nama: 'Ustadz Ahmad Fauzi',
+    nip: 'MWA-2026-001',
+    jabatan: 'Ustadz',
+    statusKepegawaian: 'tetap',
+    email: 'ahmad@muallim.sch.id',
+    telepon: '081234567891',
+    alamat: 'Jl. Masjid No. 12, Makassar',
+    foto: '',
+    role: 'guru',
+    aktif: true,
+    tanggalGabung: '2026-08-01',
+    password: DEFAULT_GURU_PASSWORD,
+    perluGantiPassword: false,
+  },
+  {
+    id: 'guru-2',
+    nama: 'Ustadzah Nurul Widyasari',
+    nip: 'MWA-2026-002',
+    jabatan: 'Ustadzah',
+    statusKepegawaian: 'tetap',
+    email: 'widyarhams@gmail.com',
+    telepon: '081234567892',
+    alamat: 'Jl. Pendidikan No. 5, Makassar',
+    foto: '',
+    role: 'guru',
+    aktif: true,
+    tanggalGabung: '2026-08-01',
+    password: DEFAULT_GURU_PASSWORD,
+    perluGantiPassword: false,
+  },
+  {
+    id: 'guru-3',
+    nama: 'Ustadz Faisal Rahman',
+    nip: 'MWA-2026-003',
+    jabatan: 'Ustadz',
+    statusKepegawaian: 'honorer',
+    email: 'faisal@muallim.sch.id',
+    telepon: '081234567893',
+    alamat: 'Jl. Pemuda No. 8, Makassar',
+    foto: '',
+    role: 'guru',
+    aktif: true,
+    tanggalGabung: '2026-08-01',
+    password: DEFAULT_GURU_PASSWORD,
+    perluGantiPassword: false,
+  },
+];
 
 export function clearGuruSession(): void {
   if (typeof window !== 'undefined') {
@@ -130,13 +180,92 @@ export const currentGuru: Guru = {
 };
 
 // ============================================================
-// 2. DATA ABSENSI (KOSONG / BERSIH)
+// 2. DATA ABSENSI TESTING (Simulasi Sesi Pagi & Siang)
 // ============================================================
 
-export const mockAbsensi: AbsensiRecord[] = [];
+export const mockAbsensi: AbsensiRecord[] = [
+  {
+    id: 'abs-2026-08-30-pagi-guru-1',
+    tanggal: '2026-08-30',
+    guruId: 'guru-1',
+    guruNama: 'Ustadz Ahmad Fauzi',
+    jamMasuk: '08:25',
+    jamPulang: '10:30',
+    status: 'hadir_tepat_waktu',
+    keterlambatan: 0,
+    lokasiValid: true,
+    dibuatPada: '2026-08-30T08:25:00.000Z',
+    durasiMenit: 120,
+    jamDibayar: 2,
+    honorNominal: 60000,
+    keterangan: 'Sesi Pagi (08:30–10:30) - Tepat Waktu',
+    sesiId: 'pagi',
+    sesiNama: 'Sesi Pagi (08:30–10:30)',
+    fotoMasukStatus: 'verified',
+    fotoMasukVerifiedAt: new Date().toISOString(),
+  },
+  {
+    id: 'abs-2026-08-30-siang-guru-1',
+    tanggal: '2026-08-30',
+    guruId: 'guru-1',
+    guruNama: 'Ustadz Ahmad Fauzi',
+    jamMasuk: '13:33',
+    jamPulang: '15:30',
+    status: 'hadir_tepat_waktu',
+    keterlambatan: 3,
+    lokasiValid: true,
+    dibuatPada: '2026-08-30T13:33:00.000Z',
+    durasiMenit: 180,
+    jamDibayar: 3,
+    honorNominal: 90000,
+    keterangan: 'Sesi Siang (13:30–15:30) - Termaklumi (2 Jam Dasar + 1 Jam Substitusi Kuota Alfa)',
+    sesiId: 'siang',
+    sesiNama: 'Sesi Siang (13:30–15:30)',
+    fotoMasukStatus: 'verified',
+    fotoMasukVerifiedAt: new Date().toISOString(),
+  },
+  {
+    id: 'abs-2026-08-30-siang-guru-2',
+    tanggal: '2026-08-30',
+    guruId: 'guru-2',
+    guruNama: 'Ustadzah Nurul Widyasari',
+    jamMasuk: '13:45',
+    jamPulang: '15:30',
+    status: 'terlambat',
+    keterlambatan: 15,
+    lokasiValid: true,
+    dibuatPada: '2026-08-30T13:45:00.000Z',
+    durasiMenit: 165,
+    jamDibayar: 2.75,
+    honorNominal: 82500,
+    keterangan: 'Sesi Siang (13:30–15:30) - Terlambat 15 mnt (1.75 Jam Dasar + 1 Jam Substitusi Kuota Alfa)',
+    sesiId: 'siang',
+    sesiNama: 'Sesi Siang (13:30–15:30)',
+    fotoMasukStatus: 'verified',
+    fotoMasukVerifiedAt: new Date().toISOString(),
+  },
+  {
+    id: 'abs-2026-08-30-siang-guru-3',
+    tanggal: '2026-08-30',
+    guruId: 'guru-3',
+    guruNama: 'Ustadz Faisal Rahman',
+    jamMasuk: null,
+    jamPulang: null,
+    status: 'alfa',
+    keterlambatan: 0,
+    lokasiValid: false,
+    dibuatPada: '2026-08-30T15:30:00.000Z',
+    durasiMenit: 0,
+    jamDibayar: 0,
+    honorNominal: 0,
+    keterangan: 'Sesi Siang (13:30–15:30) - Tidak Hadir',
+    sesiId: 'siang',
+    sesiNama: 'Sesi Siang (13:30–15:30)',
+  },
+];
 
 // ============================================================
-// 3. 4 SESI KELAS YAYASAN (DEFAULT)
+// 3. 3 SESI MISI MENGAJAR YAYASAN (DEFAULT)
 // ============================================================
 
 export const mockSesiList: SesiConfig[] = [
@@ -144,35 +273,35 @@ export const mockSesiList: SesiConfig[] = [
     id: 'pagi',
     nama: 'Kelas Pagi',
     jamMulai: '07:30',
-    jamSelesai: '10:30',
-    deskripsi: 'Sesi pembelajaran Tahfidz & Tilawah pagi',
+    jamSelesai: '09:30',
+    deskripsi: 'Misi kelas pagi, kuota 1 pengajar',
     warna: '#DCFCE7', // Hijau
+    maxPengajar: 1,
+    totalJamBayar: 2,
   },
   {
     id: 'siang',
     nama: 'Kelas Siang',
     jamMulai: '10:30',
-    jamSelesai: '13:30',
-    deskripsi: 'Sesi pembelajaran Fiqih, Bahasa Arab & Hadits',
+    jamSelesai: '12:30',
+    deskripsi: 'Misi kelas siang, kuota 3 pengajar',
     warna: '#FEF3C7', // Kuning
+    maxPengajar: 3,
+    totalJamBayar: 6,
   },
   {
     id: 'sore',
     nama: 'Kelas Sore',
     jamMulai: '14:00',
-    jamSelesai: '17:00',
-    deskripsi: 'Sesi Muroja\'ah hafalan & bimbingan intensif',
+    jamSelesai: '16:00',
+    deskripsi: 'Misi kelas sore, kuota 3 pengajar',
     warna: '#E0F2FE', // Biru
-  },
-  {
-    id: 'tahfidz',
-    nama: 'Kelas Tahfidz',
-    jamMulai: '18:30',
-    jamSelesai: '20:30',
-    deskripsi: 'Sesi Halaqah Tahfidz malam ba\'da Maghrib',
-    warna: '#F3E8FF', // Ungu
+    maxPengajar: 3,
+    totalJamBayar: 6,
   },
 ];
+
+export const mockSesiBookings: SesiBooking[] = [];
 
 // Matriks Jadwal Guru
 export const mockJadwalMatrix: JadwalSesiEntry[] = [];
@@ -225,6 +354,15 @@ export function loadPersistedData(): void {
       }
     }
 
+    const savedBookings = localStorage.getItem('muallim_sesi_bookings');
+    if (savedBookings) {
+      const parsed = JSON.parse(savedBookings);
+      if (Array.isArray(parsed)) {
+        mockSesiBookings.length = 0;
+        mockSesiBookings.push(...parsed);
+      }
+    }
+
     const savedSettings = localStorage.getItem('muallim_app_settings');
     if (savedSettings) {
       const parsed = JSON.parse(savedSettings);
@@ -238,8 +376,43 @@ export function loadPersistedData(): void {
       try {
         const parsed = JSON.parse(savedSesi);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          const cleaned = parsed.filter((s: SesiConfig) => s.id !== 'tahfidz');
           mockSesiList.length = 0;
-          mockSesiList.push(...parsed);
+          mockSesiList.push(...(cleaned.length > 0 ? cleaned : [
+            {
+              id: 'pagi',
+              nama: 'Kelas Pagi',
+              jamMulai: '07:30',
+              jamSelesai: '09:30',
+              deskripsi: 'Misi kelas pagi, kuota 1 pengajar',
+              warna: '#DCFCE7',
+              maxPengajar: 1,
+              totalJamBayar: 2,
+            },
+            {
+              id: 'siang',
+              nama: 'Kelas Siang',
+              jamMulai: '10:30',
+              jamSelesai: '12:30',
+              deskripsi: 'Misi kelas siang, kuota 3 pengajar',
+              warna: '#FEF3C7',
+              maxPengajar: 3,
+              totalJamBayar: 6,
+            },
+            {
+              id: 'sore',
+              nama: 'Kelas Sore',
+              jamMulai: '14:00',
+              jamSelesai: '16:00',
+              deskripsi: 'Misi kelas sore, kuota 3 pengajar',
+              warna: '#E0F2FE',
+              maxPengajar: 3,
+              totalJamBayar: 6,
+            },
+          ]));
+          if (cleaned.length !== parsed.length) {
+            localStorage.setItem('muallim_sesi_list', JSON.stringify(mockSesiList));
+          }
         }
       } catch (e) {}
     }
@@ -325,6 +498,110 @@ export function savePersistedAbsensi(records: AbsensiRecord[]): void {
       console.error('Error saving absensi:', e);
     }
   }
+}
+
+export function savePersistedSesiBookings(bookings: SesiBooking[]): void {
+  mockSesiBookings.length = 0;
+  mockSesiBookings.push(...bookings);
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('muallim_sesi_bookings', JSON.stringify(bookings));
+      import('./supabaseClient').then(({ saveSesiBookingsSupabase }) => {
+        saveSesiBookingsSupabase(bookings);
+      }).catch(() => {});
+    } catch (e) {
+      console.error('Error saving sesi bookings:', e);
+    }
+  }
+}
+
+export function getSesiBookingsByDate(tanggal: string, bookings: SesiBooking[] = mockSesiBookings): SesiBooking[] {
+  return bookings.filter((b) => b.tanggal === tanggal && b.status !== 'batal');
+}
+
+export function getSesiBookingsForSlot(tanggal: string, sesiId: string, bookings: SesiBooking[] = mockSesiBookings): SesiBooking[] {
+  return getSesiBookingsByDate(tanggal, bookings).filter((b) => b.sesiId === sesiId);
+}
+
+export function getSesiSlotInfo(tanggal: string, sesi: SesiConfig, bookings: SesiBooking[] = mockSesiBookings) {
+  const slotBookings = getSesiBookingsForSlot(tanggal, sesi.id, bookings);
+  const maxPengajar = sesi.maxPengajar || (sesi.id === 'pagi' ? 1 : 3);
+  const bookedCount = slotBookings.filter((b) => b.status === 'booked' || b.status === 'hadir' || b.status === 'selesai').length;
+  const hadirCount = slotBookings.filter((b) => b.status === 'hadir' || b.status === 'selesai').length;
+  const totalJamBayar = sesi.totalJamBayar || maxPengajar * 2;
+  const jamPerHadir = hadirCount > 0 ? totalJamBayar / hadirCount : 0;
+
+  return {
+    bookings: slotBookings,
+    maxPengajar,
+    bookedCount,
+    sisaSlot: Math.max(0, maxPengajar - bookedCount),
+    penuh: bookedCount >= maxPengajar,
+    hadirCount,
+    totalJamBayar,
+    jamPerHadir,
+  };
+}
+
+export function bookSesiSlot(tanggal: string, sesi: SesiConfig, guru: Guru): { success: boolean; message: string; booking?: SesiBooking } {
+  const existing = mockSesiBookings.find(
+    (b) => b.tanggal === tanggal && b.sesiId === sesi.id && b.guruId === guru.id && b.status !== 'batal'
+  );
+  if (existing) {
+    return { success: false, message: 'Anda sudah mengambil sesi ini.', booking: existing };
+  }
+
+  const slotInfo = getSesiSlotInfo(tanggal, sesi);
+  if (slotInfo.penuh) {
+    return { success: false, message: `Slot ${sesi.nama} sudah penuh.` };
+  }
+
+  const booking: SesiBooking = {
+    id: `book-${tanggal}-${sesi.id}-${guru.id}`,
+    tanggal,
+    sesiId: sesi.id,
+    sesiNama: sesi.nama,
+    guruId: guru.id,
+    guruNama: guru.nama,
+    status: 'booked',
+    dibuatPada: new Date().toISOString(),
+    jamMasuk: null,
+    jamPulang: null,
+    jamDibayar: 0,
+  };
+
+  savePersistedSesiBookings([booking, ...mockSesiBookings]);
+  return { success: true, message: `Slot ${sesi.nama} berhasil diambil.`, booking };
+}
+
+export function updateSesiBooking(updatedBooking: SesiBooking): void {
+  const next = mockSesiBookings.filter((b) => b.id !== updatedBooking.id);
+  savePersistedSesiBookings([updatedBooking, ...next]);
+}
+
+export function cancelSesiBooking(tanggal: string, sesiId: string, guruId: string): { success: boolean; message: string } {
+  const existing = mockSesiBookings.find(
+    (b) => b.tanggal === tanggal && b.sesiId === sesiId && b.guruId === guruId && b.status !== 'batal'
+  );
+  if (!existing) {
+    return { success: false, message: 'Data pendaftaran tidak ditemukan.' };
+  }
+
+  const next = mockSesiBookings.filter((b) => b.id !== existing.id);
+  savePersistedSesiBookings(next);
+  return { success: true, message: `Pendaftaran ${existing.sesiNama} berhasil dibatalkan.` };
+}
+
+export function calculatePaidHoursForAttendance(tanggal: string, sesi: SesiConfig, absensi: AbsensiRecord[] = mockAbsensi): number {
+  const totalJamBayar = sesi.totalJamBayar || (sesi.maxPengajar || (sesi.id === 'pagi' ? 1 : 3)) * 2;
+  const hadirRecords = absensi.filter(
+    (a) =>
+      a.tanggal === tanggal &&
+      a.sesiId === sesi.id &&
+      (a.status === 'hadir_tepat_waktu' || a.status === 'terlambat') &&
+      Boolean(a.jamMasuk)
+  );
+  return hadirRecords.length > 0 ? totalJamBayar / hadirRecords.length : 0;
 }
 
 export function savePersistedAdmin(admin: MasterAdminAccount): void {
@@ -514,9 +791,10 @@ export const mockSettings: AppSettings = {
   longitude: 119.432732,
   radius: 100,
   jamMasukWajib: '07:30',
-  batasKeterlambatan: 15,
+  batasKeterlambatan: 5, // toleransi keterlambatan 5 menit
   jamPulang: '17:00',
-  waktuBukaSebelumJadwal: 60,
+  waktuBukaSebelumJadwal: 30, // 30 menit sebelum jadwal
+  tarifPerJam: 30000, // Rp 30.000 / jam
 };
 
 // ============================================================

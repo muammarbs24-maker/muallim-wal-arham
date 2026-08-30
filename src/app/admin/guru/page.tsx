@@ -2,15 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Users, Search, Plus, CheckCircle2, Clock, XCircle, X, Shield, Key, Mail, Phone, UserCheck, AlertCircle, Copy, Check } from 'lucide-react';
-import { mockGuru, hitungSkorKedisiplinan, authConfig, savePersistedGuru, loadPersistedData } from '@/lib/mockData';
-import { getInitials, generateNipYayasan } from '@/lib/utils';
+import { Users, Search, Plus, CheckCircle2, Clock, XCircle, X, Shield, Key, Mail, Phone, UserCheck, AlertCircle, Copy, Check, DollarSign } from 'lucide-react';
+import { mockGuru, hitungSkorKedisiplinan, authConfig, savePersistedGuru, loadPersistedData, mockAbsensi, mockSettings } from '@/lib/mockData';
+import { getInitials, generateNipYayasan, formatRupiah, formatJamLengkap } from '@/lib/utils';
 import { sendTeacherWelcomeEmail } from '@/lib/emailService';
-import { getGurusSupabase, upsertGuruSupabase } from '@/lib/supabaseClient';
-import type { Guru } from '@/types';
+import { getGurusSupabase, upsertGuruSupabase, getAbsensiSupabase, getAppSettingsSupabase } from '@/lib/supabaseClient';
+import type { Guru, AbsensiRecord, AppSettings } from '@/types';
 
 export default function AdminGuruPage() {
   const [guruList, setGuruList] = useState<Guru[]>([]);
+  const [absensiList, setAbsensiList] = useState<AbsensiRecord[]>([]);
+  const [appSettings, setAppSettings] = useState<AppSettings>(mockSettings);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -21,6 +23,7 @@ export default function AdminGuruPage() {
   useEffect(() => {
     loadPersistedData();
     setGuruList([...mockGuru]);
+    setAbsensiList([...mockAbsensi]);
 
     getGurusSupabase().then((dbGurus) => {
       if (Array.isArray(dbGurus) && dbGurus.length > 0) {
@@ -32,6 +35,21 @@ export default function AdminGuruPage() {
           } catch (e) {}
         }
         setGuruList([...dbGurus]);
+      }
+    }).catch(() => {});
+
+    getAbsensiSupabase().then((data) => {
+      if (Array.isArray(data)) {
+        setAbsensiList(data);
+        mockAbsensi.length = 0;
+        mockAbsensi.push(...data);
+      }
+    }).catch(() => {});
+
+    getAppSettingsSupabase().then((s) => {
+      if (s) {
+        setAppSettings(s);
+        Object.assign(mockSettings, s);
       }
     }).catch(() => {});
   }, []);
@@ -257,14 +275,32 @@ export default function AdminGuruPage() {
                     <th>NIP / ID</th>
                     <th>Jabatan</th>
                     <th>Status</th>
+                    <th style={{ textAlign: 'right' }}>Jam Mengajar (Bulan Ini)</th>
+                    <th style={{ textAlign: 'right' }}>Estimasi Honor</th>
                     <th>Kedisiplinan</th>
-                    <th>Kehadiran</th>
                     <th>Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredGuru.map((g) => {
                     const skor = hitungSkorKedisiplinan(g.id);
+                    const now = new Date();
+                    const yStr = String(now.getFullYear());
+                    const mStr = String(now.getMonth() + 1).padStart(2, '0');
+                    const guruMonthly = absensiList.filter((a) => {
+                      const [y, m] = a.tanggal.split('-');
+                      return a.guruId === g.id && y === yStr && m === mStr && (a.status === 'hadir_tepat_waktu' || a.status === 'terlambat');
+                    });
+                    const totalJam = Number(
+                      guruMonthly.reduce((sum, a) => {
+                        if (typeof a.jamDibayar === 'number') return sum + a.jamDibayar;
+                        if (typeof a.durasiMenit === 'number') return sum + Number((a.durasiMenit / 60).toFixed(2));
+                        return sum + 2;
+                      }, 0).toFixed(2)
+                    );
+                    const tarif = appSettings.tarifPerJam || 30000;
+                    const estimasiHonor = Math.round(totalJam * tarif);
+
                     return (
                       <tr key={g.id}>
                         <td>
@@ -285,6 +321,12 @@ export default function AdminGuruPage() {
                             {g.statusKepegawaian.toUpperCase()}
                           </span>
                         </td>
+                        <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--color-primary)', fontSize: '12.5px' }}>
+                          {formatJamLengkap(totalJam)}
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 800, color: '#15803D' }}>
+                          {formatRupiah(estimasiHonor)}
+                        </td>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <div style={{
@@ -302,10 +344,7 @@ export default function AdminGuruPage() {
                           </div>
                         </td>
                         <td>
-                          <span className="badge badge-success">Aktif</span>
-                        </td>
-                        <td>
-                          <Link href={`/admin/guru/${g.id}`} className="btn btn-ghost btn-sm" style={{ fontSize: 11 }}>
+                          <Link href={`/admin/laporan?tab=rekap&guruId=${encodeURIComponent(g.id)}`} className="btn btn-ghost btn-sm" style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)' }}>
                             Detail →
                           </Link>
                         </td>

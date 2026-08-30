@@ -69,13 +69,23 @@ export interface AbsensiRecord {
   lokasiValid: boolean;
   keterangan: string;
   dibuatPada: string; // ISO datetime
+  sesiId?: SesiType;
+  sesiNama?: string;
+  durasiMenit?: number; // menit mengajar riil yang diakui
+  jamDibayar?: number; // jam diakui (desimal, cth: 1.83 atau 2.0)
+  honorNominal?: number; // total honor untuk sesi ini (jamDibayar * tarifPerJam)
+  fotoMasuk?: string | null; // Base64 data URL atau storage link
+  fotoMasukStatus?: 'pending' | 'verified' | 'rejected'; // Status verifikasi admin
+  fotoMasukVerifiedAt?: string | null; // Waktu verifikasi oleh admin (ISO string)
+  fotoPulang?: string | null;
+  bookingId?: string;
 }
 
 // ============================================================
 // SCHEDULE
 // ============================================================
 
-export type SesiType = 'pagi' | 'siang' | 'sore' | 'tahfidz' | string;
+export type SesiType = 'pagi' | 'siang' | 'sore' | string;
 
 export interface SesiConfig {
   id: SesiType;
@@ -84,6 +94,22 @@ export interface SesiConfig {
   jamSelesai: string; // HH:mm
   deskripsi: string;
   warna: string;
+  maxPengajar?: number;
+  totalJamBayar?: number;
+}
+
+export interface SesiBooking {
+  id: string;
+  tanggal: string; // YYYY-MM-DD
+  sesiId: SesiType;
+  sesiNama: string;
+  guruId: string;
+  guruNama: string;
+  status: 'booked' | 'hadir' | 'selesai' | 'batal' | 'hangus';
+  dibuatPada: string;
+  jamMasuk?: string | null;
+  jamPulang?: string | null;
+  jamDibayar?: number;
 }
 
 export interface JadwalSesiEntry {
@@ -197,9 +223,10 @@ export interface AppSettings {
   longitude: number;
   radius: number; // in meters
   jamMasukWajib: string; // HH:mm
-  batasKeterlambatan: number; // minutes after jamMasuk
+  batasKeterlambatan: number; // minutes after jamMasuk (toleransi keterlambatan)
   jamPulang: string; // HH:mm
   waktuBukaSebelumJadwal?: number; // menit sebelum jadwal kelas dimulai (default: 60)
+  tarifPerJam?: number; // Tarif honor mengajar per jam dalam rupiah (cth: 30000)
 }
 
 // ============================================================

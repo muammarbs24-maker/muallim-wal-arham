@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { Star, ArrowUpRight, Calendar } from 'lucide-react';
-import { mockGuru, hitungSkorKedisiplinan, hitungPoinPartisipasi, loadPersistedData } from '@/lib/mockData';
-import { getInitials } from '@/lib/utils';
-import type { Guru } from '@/types';
+import { Star, ArrowUpRight, Calendar, DollarSign, Clock } from 'lucide-react';
+import { mockGuru, hitungSkorKedisiplinan, hitungPoinPartisipasi, loadPersistedData, mockAbsensi, mockSettings } from '@/lib/mockData';
+import { getInitials, formatRupiah, formatJamLengkap } from '@/lib/utils';
+import { getGurusSupabase, getAbsensiSupabase, getAppSettingsSupabase } from '@/lib/supabaseClient';
+import type { Guru, AbsensiRecord, AppSettings } from '@/types';
 
 const MONTH_NAMES = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -26,6 +27,9 @@ export default function AdminPerformaPage() {
     return mockGuru;
   });
 
+  const [absensiList, setAbsensiList] = useState<AbsensiRecord[]>([]);
+  const [appSettings, setAppSettings] = useState<AppSettings>(mockSettings);
+
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
@@ -33,6 +37,8 @@ export default function AdminPerformaPage() {
 
   useEffect(() => {
     loadPersistedData();
+    setAbsensiList([...mockAbsensi]);
+
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('muallim_guru_list');
@@ -45,32 +51,68 @@ export default function AdminPerformaPage() {
       } catch (e) {}
     }
 
-    import('@/lib/supabaseClient').then(({ getGurusSupabase, getAbsensiSupabase }) => {
-      getGurusSupabase().then((gurus) => {
-        if (gurus && gurus.length > 0) {
-          setGuruList(gurus);
-        }
-      }).catch(() => {});
-      getAbsensiSupabase().catch(() => {});
-    });
+    getGurusSupabase().then((gurus) => {
+      if (gurus && gurus.length > 0) {
+        setGuruList(gurus);
+      }
+    }).catch(() => {});
+
+    getAbsensiSupabase().then((data) => {
+      if (Array.isArray(data)) {
+        setAbsensiList(data);
+        mockAbsensi.length = 0;
+        mockAbsensi.push(...data);
+      }
+    }).catch(() => {});
+
+    getAppSettingsSupabase().then((s) => {
+      if (s) {
+        setAppSettings(s);
+        Object.assign(mockSettings, s);
+      }
+    }).catch(() => {});
   }, []);
 
   const performaData = useMemo(() => {
     const list = guruList.length > 0 ? guruList : mockGuru;
+    const yStr = String(currentYear);
+    const mStr = String(currentMonth + 1).padStart(2, '0');
+    const tarif = appSettings.tarifPerJam || 30000;
+
     return list
       .filter((g) => g.aktif)
-      .map((g) => ({
-        guru: g,
-        skor: hitungSkorKedisiplinan(g.id, currentMonth + 1, currentYear),
-        poin: hitungPoinPartisipasi(g.id, currentMonth + 1, currentYear),
-      }))
+      .map((g) => {
+        const monthly = (absensiList.length > 0 ? absensiList : mockAbsensi).filter((a) => {
+          const [y, m] = a.tanggal.split('-');
+          return a.guruId === g.id && y === yStr && m === mStr && (a.status === 'hadir_tepat_waktu' || a.status === 'terlambat');
+        });
+
+        const totalJam = Number(
+          monthly.reduce((sum, a) => {
+            if (typeof a.jamDibayar === 'number') return sum + a.jamDibayar;
+            if (typeof a.durasiMenit === 'number') return sum + Number((a.durasiMenit / 60).toFixed(2));
+            return sum + 2;
+          }, 0).toFixed(2)
+        );
+
+        const totalHonor = Math.round(totalJam * tarif);
+
+        return {
+          guru: g,
+          skor: hitungSkorKedisiplinan(g.id, currentMonth + 1, currentYear),
+          poin: hitungPoinPartisipasi(g.id, currentMonth + 1, currentYear),
+          totalJam,
+          totalHonor,
+          sesiCount: monthly.length,
+        };
+      })
       .sort((a, b) => {
         if (a.skor.hasAttendance && !b.skor.hasAttendance) return -1;
         if (!a.skor.hasAttendance && b.skor.hasAttendance) return 1;
         if (b.skor.skor !== a.skor.skor) return b.skor.skor - a.skor.skor;
         return b.skor.hadirTepatWaktu - a.skor.hadirTepatWaktu;
       });
-  }, [guruList, currentMonth, currentYear]);
+  }, [guruList, absensiList, appSettings, currentMonth, currentYear]);
 
   const gradeColor = (grade: string) =>
     grade === 'Sangat Baik' ? 'success' :
@@ -88,7 +130,7 @@ export default function AdminPerformaPage() {
             </span>
           </h1>
           <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>
-            Evaluasi kedisiplinan dan poin partisipasi guru
+            Evaluasi kedisiplinan, akumulasi jam mengajar, dan estimasi honor pengajar
           </p>
         </div>
       </div>
@@ -112,15 +154,20 @@ export default function AdminPerformaPage() {
                 <div className="avatar avatar-lg" style={{ margin: '0 auto var(--space-2)', width: 44, height: 44, fontSize: 16 }}>{getInitials(p.guru.nama)}</div>
                 <div style={{ fontWeight: 800, fontSize: 'var(--font-size-sm)', marginBottom: 2 }}>{p.guru.nama.split(',')[0]}</div>
                 <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', marginBottom: 'var(--space-3)' }}>{p.guru.jabatan}</div>
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-4)', background: 'var(--color-surface-2)', padding: '10px 12px', borderRadius: 'var(--radius-md)' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-2)', background: 'var(--color-surface-2)', padding: '10px 8px', borderRadius: 'var(--radius-md)' }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 800, color: `var(--color-${gradeColor(p.skor.grade)})` }}>{p.skor.skor}</div>
-                    <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', fontWeight: 600 }}>Skor Disiplin</div>
+                    <div style={{ fontSize: 'var(--font-size-lg)', fontWeight: 800, color: `var(--color-${gradeColor(p.skor.grade)})` }}>{p.skor.skor}</div>
+                    <div style={{ fontSize: 9.5, color: 'var(--color-text-tertiary)', fontWeight: 600 }}>Disiplin</div>
                   </div>
                   <div style={{ width: 1, background: 'var(--color-border)' }} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 800, color: 'var(--color-accent)' }}>{p.poin.poinTotal}</div>
-                    <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', fontWeight: 600 }}>Poin</div>
+                    <div style={{ fontSize: 'var(--font-size-lg)', fontWeight: 800, color: 'var(--color-primary)' }}>{p.totalJam}j</div>
+                    <div style={{ fontSize: 9.5, color: 'var(--color-text-tertiary)', fontWeight: 600 }}>Jam</div>
+                  </div>
+                  <div style={{ width: 1, background: 'var(--color-border)' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#15803D', lineHeight: 1.6 }}>{formatRupiah(p.totalHonor)}</div>
+                    <div style={{ fontSize: 9.5, color: 'var(--color-text-tertiary)', fontWeight: 600 }}>Honor</div>
                   </div>
                 </div>
               </div>
@@ -130,8 +177,11 @@ export default function AdminPerformaPage() {
 
         {/* Full Table */}
         <div className="card">
-          <div className="card-header">
-            <span style={{ fontWeight: 700 }}>Tabel Performa Lengkap</span>
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontWeight: 700 }}>Tabel Performa &amp; Honor Guru ({namaBulan} {currentYear})</span>
+            <span className="badge badge-success" style={{ fontWeight: 800 }}>
+              Tarif: {formatRupiah(appSettings.tarifPerJam || 30000)}/jam
+            </span>
           </div>
           <div className="table-container" style={{ border: 'none', borderRadius: 0 }}>
             <table className="table">
@@ -142,10 +192,10 @@ export default function AdminPerformaPage() {
                   <th>Jabatan</th>
                   <th>Hadir Tepat Waktu</th>
                   <th>Terlambat</th>
-                  <th>Izin</th>
-                  <th>Alfa</th>
+                  <th style={{ textAlign: 'right' }}>Jam Mengajar</th>
+                  <th style={{ textAlign: 'right' }}>Estimasi Honor</th>
                   <th>Skor Disiplin</th>
-                  <th>Poin Partisipasi</th>
+                  <th>Poin</th>
                   <th>Detail</th>
                 </tr>
               </thead>
@@ -160,13 +210,17 @@ export default function AdminPerformaPage() {
                       </div>
                     </td>
                     <td style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>{p.guru.jabatan}</td>
-                    <td style={{ color: 'var(--color-success)', fontWeight: 700 }}>{p.skor.hadirTepatWaktu}</td>
-                    <td style={{ color: 'var(--color-warning)', fontWeight: 700 }}>{p.skor.terlambat}</td>
-                    <td style={{ color: 'var(--color-info)', fontWeight: 700 }}>{p.skor.izin}</td>
-                    <td style={{ color: 'var(--color-danger)', fontWeight: 700 }}>{p.skor.alfa}</td>
+                    <td style={{ color: 'var(--color-success)', fontWeight: 700 }}>{p.skor.hadirTepatWaktu} sesi</td>
+                    <td style={{ color: 'var(--color-warning)', fontWeight: 700 }}>{p.skor.terlambat > 0 ? `${p.skor.terlambat}x` : '—'}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--color-primary)', fontSize: '12.5px' }}>
+                      {formatJamLengkap(p.totalJam)}
+                    </td>
+                    <td style={{ textAlign: 'right', fontWeight: 800, color: '#15803D' }}>
+                      {formatRupiah(p.totalHonor)}
+                    </td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                        <span style={{ fontSize: 'var(--font-size-lg)', fontWeight: 800, color: `var(--color-${gradeColor(p.skor.grade)})` }}>{p.skor.skor}</span>
+                        <span style={{ fontSize: 'var(--font-size-base)', fontWeight: 800, color: `var(--color-${gradeColor(p.skor.grade)})` }}>{p.skor.skor}</span>
                         <span className={`badge badge-${gradeColor(p.skor.grade)}`} style={{ fontSize: 10 }}>{p.skor.grade}</span>
                       </div>
                     </td>
@@ -176,7 +230,7 @@ export default function AdminPerformaPage() {
                       </span>
                     </td>
                     <td>
-                      <Link href={`/admin/guru/${p.guru.id}`} className="btn btn-secondary btn-sm">
+                      <Link href={`/admin/laporan?tab=rekap&guruId=${encodeURIComponent(p.guru.id)}`} className="btn btn-secondary btn-sm" title="Lihat Rekapitulasi & Honor Guru">
                         <ArrowUpRight size={13} />
                       </Link>
                     </td>

@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Award, CheckCircle2, Clock, AlertCircle, XCircle, Star, TrendingUp, Info, Calendar } from 'lucide-react';
-import { currentGuru, hitungSkorKedisiplinan, hitungPoinPartisipasi, mockAbsensi, mockPartisipasi, loadPersistedData } from '@/lib/mockData';
-import type { Guru } from '@/types';
+import { Award, CheckCircle2, Clock, AlertCircle, XCircle, Star, TrendingUp, Info, Calendar, BookOpen } from 'lucide-react';
+import { currentGuru, hitungSkorKedisiplinan, hitungPoinPartisipasi, mockAbsensi, mockPartisipasi, loadPersistedData, mockSettings } from '@/lib/mockData';
+import { formatJamLengkap } from '@/lib/utils';
+import type { Guru, AbsensiRecord, AppSettings } from '@/types';
 
 const MONTH_NAMES = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -12,6 +13,9 @@ const MONTH_NAMES = [
 
 export default function PerformaPage() {
   const [activeGuru, setActiveGuru] = useState<Guru>(currentGuru);
+  const [appSettings, setAppSettings] = useState<AppSettings>(mockSettings);
+  const [absensiList, setAbsensiList] = useState<AbsensiRecord[]>([]);
+
   const now = new Date();
   const currentMonth = now.getMonth(); // 0-11
   const currentYear = now.getFullYear();
@@ -29,11 +33,62 @@ export default function PerformaPage() {
           }
         } catch (e) {}
       }
+
+      const savedAbs = localStorage.getItem('muallim_absensi_list');
+      if (savedAbs) {
+        try {
+          const parsed = JSON.parse(savedAbs);
+          if (Array.isArray(parsed)) {
+            setAbsensiList([...parsed]);
+          }
+        } catch (e) {}
+      }
+
+      const savedSettings = localStorage.getItem('muallim_app_settings');
+      if (savedSettings) {
+        try {
+          const parsed = JSON.parse(savedSettings);
+          if (parsed) {
+            setAppSettings(parsed);
+          }
+        } catch (e) {}
+      }
     }
+
+    import('@/lib/supabaseClient').then(({ getAppSettingsSupabase, getAbsensiSupabase }) => {
+      getAppSettingsSupabase().then((s) => {
+        if (s) setAppSettings(s);
+      }).catch(() => {});
+
+      getAbsensiSupabase().then((data) => {
+        if (Array.isArray(data)) setAbsensiList(data);
+      }).catch(() => {});
+    }).catch(() => {});
   }, []);
 
   const skor = hitungSkorKedisiplinan(activeGuru.id, currentMonth + 1, currentYear);
   const poin = hitungPoinPartisipasi(activeGuru.id, currentMonth + 1, currentYear);
+
+  // Akumulasi Jam Mengajar Bulan Ini
+  const filterBulanStr = String(currentMonth + 1).padStart(2, '0');
+  const guruMonthlyRecords = (absensiList.length > 0 ? absensiList : mockAbsensi).filter((a) => {
+    const [y, m] = a.tanggal.split('-');
+    return a.guruId === activeGuru.id && y === String(currentYear) && m === filterBulanStr && (a.status === 'hadir_tepat_waktu' || a.status === 'terlambat');
+  });
+
+  const totalJamMengajar = Number(
+    guruMonthlyRecords.reduce((sum, a) => {
+      if (typeof a.jamDibayar === 'number') return sum + a.jamDibayar;
+      if (typeof a.durasiMenit === 'number') return sum + Number((a.durasiMenit / 60).toFixed(2));
+      return sum + 2;
+    }, 0).toFixed(2)
+  );
+
+  const totalMenitMengajar = guruMonthlyRecords.reduce((sum, a) => {
+    if (typeof a.durasiMenit === 'number') return sum + a.durasiMenit;
+    if (typeof a.jamDibayar === 'number') return sum + Math.round(a.jamDibayar * 60);
+    return sum + 120;
+  }, 0);
 
   const gradeColor = skor.grade === 'Sangat Baik' ? 'var(--color-success)' :
     skor.grade === 'Baik' ? 'var(--color-info)' :
@@ -50,7 +105,7 @@ export default function PerformaPage() {
           <div>
             <h1 style={{ fontSize: 'var(--font-size-xl)', fontWeight: 800 }}>Performa Saya Bulan Ini</h1>
             <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', marginTop: 2 }}>
-              Penilaian kedisiplinan dan partisipasi periode {namaBulan} {currentYear}
+              Penilaian kedisiplinan dan akumulasi jam mengajar periode {namaBulan} {currentYear}
             </p>
           </div>
           <span className="badge badge-primary" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 11 }}>
@@ -60,6 +115,44 @@ export default function PerformaPage() {
       </div>
 
       <div style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+
+        {/* AKUMULASI JAM MENGAJAR */}
+        <div className="card" style={{ background: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)', border: '1.5px solid #86EFAC' }}>
+          <div className="card-header" style={{ borderBottom: '1px solid rgba(22, 163, 74, 0.15)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+              <Clock size={18} color="#15803D" />
+              <span style={{ fontWeight: 800, color: '#166534' }}>Akumulasi Jam Mengajar ({namaBulan})</span>
+            </div>
+            <span className="badge badge-success" style={{ fontWeight: 800 }}>
+              {guruMonthlyRecords.length} Sesi Terlaksana
+            </span>
+          </div>
+          <div className="card-body">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
+              <div style={{ padding: '14px', background: 'white', borderRadius: 'var(--radius-md)', border: '1px solid #BBF7D0', textAlign: 'center' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#15803D', textTransform: 'uppercase' }}>Total Jam Mengajar</div>
+                <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 800, color: '#166534', marginTop: 2 }}>
+                  {formatJamLengkap(totalJamMengajar)}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 2 }}>
+                  dari {guruMonthlyRecords.length} sesi hadir
+                </div>
+              </div>
+              <div style={{ padding: '14px', background: 'white', borderRadius: 'var(--radius-md)', border: '1px solid #BBF7D0', textAlign: 'center' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#15803D', textTransform: 'uppercase' }}>Total Durasi Riil</div>
+                <div style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 800, color: '#15803D', marginTop: 2 }}>
+                  {totalMenitMengajar} <span style={{ fontSize: 13, fontWeight: 600 }}>Menit</span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 2 }}>
+                  akumulasi waktu mengajar
+                </div>
+              </div>
+            </div>
+            <p style={{ fontSize: 11.5, color: '#166534', margin: 0, lineHeight: 1.5 }}>
+              💡 <em>Jam mengajar dihitung berdasarkan waktu mengajar aktual yang diakui dengan toleransi keterlambatan <strong>{appSettings.batasKeterlambatan || 5} menit</strong>.</em>
+            </p>
+          </div>
+        </div>
 
         {/* Reset Bulanan Info Banner */}
         <div style={{
@@ -75,7 +168,7 @@ export default function PerformaPage() {
         }}>
           <Info size={16} color="var(--color-primary)" style={{ flexShrink: 0 }} />
           <span>
-            Skor performa dan poin dievaluasi per bulan dan <strong>otomatis di-reset setiap awal bulan</strong> untuk memberikan lembaran baru yang segar.
+            Skor kedisiplinan dan akumulasi jam mengajar dievaluasi per bulan dan <strong>otomatis di-reset setiap awal bulan</strong>.
           </span>
         </div>
 
@@ -121,11 +214,9 @@ export default function PerformaPage() {
 
             {/* Detail Stats */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-              <StatRow icon={<CheckCircle2 size={16} color="var(--color-success)" />} label="Hadir Tepat Waktu" value={skor.hadirTepatWaktu} unit="hari" color="success" />
-              <StatRow icon={<Clock size={16} color="var(--color-warning)" />} label="Terlambat" value={skor.terlambat} unit="hari" color="warning" />
-              <StatRow icon={<Info size={16} color="var(--color-info)" />} label="Izin" value={skor.izin} unit="hari" color="info" />
-              <StatRow icon={<Info size={16} color="var(--color-info)" />} label="Sakit" value={skor.sakit} unit="hari" color="info" />
-              <StatRow icon={<XCircle size={16} color="var(--color-danger)" />} label="Alfa (Tanpa Keterangan)" value={skor.alfa} unit="hari" color="danger" />
+              <StatRow icon={<CheckCircle2 size={16} color="var(--color-success)" />} label="Hadir Tepat Waktu" value={skor.hadirTepatWaktu} unit="sesi" color="success" />
+              <StatRow icon={<Clock size={16} color="var(--color-warning)" />} label="Terlambat" value={skor.terlambat} unit="sesi" color="warning" />
+              <StatRow icon={<XCircle size={16} color="var(--color-danger)" />} label="Alfa (Tanpa Keterangan)" value={skor.alfa} unit="sesi" color="danger" />
             </div>
 
             {/* Progress bar */}
@@ -140,20 +231,6 @@ export default function PerformaPage() {
                   background: gradeColor,
                 }} />
               </div>
-            </div>
-
-            {/* Formula transparency */}
-            <div style={{
-              marginTop: 'var(--space-4)',
-              padding: 'var(--space-3)',
-              background: 'var(--color-surface-2)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--color-border-light)',
-            }}>
-              <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)', lineHeight: 1.6 }}>
-                <strong>Cara Perhitungan:</strong> Hadir tepat waktu = 100 poin, Terlambat = 70 poin, Izin = 80 poin, Sakit = 85 poin, Alfa = -5 poin per hari.
-                Skor merupakan rata-rata tertimbang dari total hari kerja.
-              </p>
             </div>
           </div>
         </div>

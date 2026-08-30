@@ -17,7 +17,7 @@ const SESI_ICONS: Record<string, React.ReactNode> = {
   tahfidz: <Moon size={20} color="#7C3AED" />,
 };
 
-const DEFAULT_SESI_IDS = ['pagi', 'siang', 'sore', 'tahfidz'];
+const DEFAULT_SESI_IDS = ['pagi', 'siang', 'sore'];
 
 const COLOR_PRESETS = [
   { label: 'Hijau Emerald', value: '#DCFCE7', border: '#10B981' },

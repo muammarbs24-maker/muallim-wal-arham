@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Guru, JadwalSesiEntry, AbsensiRecord, AppSettings, Kegiatan, KegiatanPartisipasi, MasterAdminAccount, SesiConfig, TukarJadwalRequest } from '@/types';
+import type { Guru, JadwalSesiEntry, AbsensiRecord, AppSettings, Kegiatan, KegiatanPartisipasi, MasterAdminAccount, SesiConfig, TukarJadwalRequest, SesiBooking } from '@/types';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hymwqulohlxeyjhvamky.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_vnVsFvRLJalZgb76SgB7wA_yW94xuny';
@@ -268,6 +268,42 @@ export async function saveTukarJadwalRequestsSupabase(requests: TukarJadwalReque
   }
 }
 
+export async function getSesiBookingsSupabase(): Promise<SesiBooking[]> {
+  try {
+    const { data, error } = await supabase
+      .from('jadwal_matrix')
+      .select('*')
+      .eq('id', '__sesi_bookings__')
+      .maybeSingle();
+
+    if (error || !data || !data.sesi_id) return [];
+    const parsed = JSON.parse(data.sesi_id);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    console.error('Error getSesiBookingsSupabase:', err);
+    return [];
+  }
+}
+
+export async function saveSesiBookingsSupabase(bookings: SesiBooking[]): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('jadwal_matrix')
+      .upsert({
+        id: '__sesi_bookings__',
+        hari: 'Senin',
+        sesi_id: JSON.stringify(bookings),
+        guru_ids: [],
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+
+    return !error;
+  } catch (err) {
+    console.error('Error saveSesiBookingsSupabase:', err);
+    return false;
+  }
+}
+
 /**
  * 4. ABSENSI RECORDS SERVICE
  */
@@ -279,19 +315,42 @@ export async function getAbsensiSupabase(): Promise<AbsensiRecord[]> {
       .order('dibuat_pada', { ascending: false });
 
     if (error || !data) return [];
-    return data.map((d: any) => ({
-      id: d.id,
-      guruId: d.guru_id,
-      guruNama: d.guru_nama,
-      tanggal: d.tanggal,
-      jamMasuk: d.jam_masuk,
-      jamPulang: d.jam_pulang,
-      status: d.status,
-      keterlambatan: d.keterlambatan || 0,
-      lokasiValid: d.lokasi_valid,
-      keterangan: d.keterangan || '',
-      dibuatPada: d.dibuat_pada,
-    }));
+    return data.map((d: any) => {
+      // Decode potential extra meta in keterangan if exists
+      let extraMeta: any = {};
+      let cleanKeterangan = d.keterangan || '';
+      if (cleanKeterangan.includes('__META__')) {
+        try {
+          const parts = cleanKeterangan.split('__META__');
+          cleanKeterangan = parts[0];
+          extraMeta = JSON.parse(parts[1]);
+        } catch (e) {}
+      }
+
+      return {
+        id: d.id,
+        guruId: d.guru_id,
+        guruNama: d.guru_nama,
+        tanggal: d.tanggal,
+        jamMasuk: d.jam_masuk,
+        jamPulang: d.jam_pulang,
+        status: d.status,
+        keterlambatan: d.keterlambatan || 0,
+        lokasiValid: d.lokasi_valid,
+        keterangan: cleanKeterangan,
+        dibuatPada: d.dibuat_pada,
+        sesiId: d.sesi_id || extraMeta.sesiId,
+        sesiNama: d.sesi_nama || extraMeta.sesiNama,
+        durasiMenit: d.durasi_menit ?? extraMeta.durasiMenit,
+        jamDibayar: d.jam_dibayar ?? extraMeta.jamDibayar,
+        honorNominal: d.honor_nominal ?? extraMeta.honorNominal,
+        fotoMasuk: d.foto_masuk ?? extraMeta.fotoMasuk ?? null,
+        fotoMasukStatus: d.foto_masuk_status ?? extraMeta.fotoMasukStatus ?? (extraMeta.fotoMasuk ? 'pending' : undefined),
+        fotoMasukVerifiedAt: d.foto_masuk_verified_at ?? extraMeta.fotoMasukVerifiedAt ?? null,
+        fotoPulang: d.foto_pulang ?? extraMeta.fotoPulang ?? null,
+        bookingId: d.booking_id ?? extraMeta.bookingId,
+      };
+    });
   } catch (err) {
     console.error('Error getAbsensiSupabase:', err);
     return [];
@@ -300,6 +359,21 @@ export async function getAbsensiSupabase(): Promise<AbsensiRecord[]> {
 
 export async function upsertAbsensiSupabase(record: AbsensiRecord): Promise<boolean> {
   try {
+    const extraMeta = {
+      sesiId: record.sesiId,
+      sesiNama: record.sesiNama,
+      durasiMenit: record.durasiMenit,
+      jamDibayar: record.jamDibayar,
+      honorNominal: record.honorNominal,
+      fotoMasuk: record.fotoMasuk,
+      fotoMasukStatus: record.fotoMasukStatus,
+      fotoMasukVerifiedAt: record.fotoMasukVerifiedAt,
+      fotoPulang: record.fotoPulang,
+      bookingId: record.bookingId,
+    };
+
+    const combinedKeterangan = `${record.keterangan || ''}__META__${JSON.stringify(extraMeta)}`;
+
     const { error } = await supabase
       .from('absensi_records')
       .upsert({
@@ -312,7 +386,7 @@ export async function upsertAbsensiSupabase(record: AbsensiRecord): Promise<bool
         status: record.status,
         keterlambatan: record.keterlambatan,
         lokasi_valid: record.lokasiValid,
-        keterangan: record.keterangan,
+        keterangan: combinedKeterangan,
         dibuat_pada: record.dibuatPada,
       }, { onConflict: 'id' });
 
@@ -351,6 +425,7 @@ export async function getAppSettingsSupabase(): Promise<AppSettings | null> {
     if (error || !data) return null;
 
     let localWaktuBuka: number | undefined;
+    let localTarifPerJam: number | undefined;
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('muallim_app_settings');
@@ -359,12 +434,16 @@ export async function getAppSettingsSupabase(): Promise<AppSettings | null> {
           if (parsed && typeof parsed.waktuBukaSebelumJadwal === 'number') {
             localWaktuBuka = parsed.waktuBukaSebelumJadwal;
           }
+          if (parsed && typeof parsed.tarifPerJam === 'number') {
+            localTarifPerJam = parsed.tarifPerJam;
+          }
         }
       } catch (e) {}
     }
 
-    // Fetch extra settings (waktuBukaSebelumJadwal) from __app_settings_extra__
+    // Fetch extra settings (waktuBukaSebelumJadwal, tarifPerJam) from __app_settings_extra__
     let extraWaktuBuka: number | undefined;
+    let extraTarifPerJam: number | undefined;
     try {
       const { data: extraData } = await supabase
         .from('jadwal_matrix')
@@ -377,6 +456,9 @@ export async function getAppSettingsSupabase(): Promise<AppSettings | null> {
         if (typeof parsed?.waktuBukaSebelumJadwal === 'number') {
           extraWaktuBuka = parsed.waktuBukaSebelumJadwal;
         }
+        if (typeof parsed?.tarifPerJam === 'number') {
+          extraTarifPerJam = parsed.tarifPerJam;
+        }
       }
     } catch (e) {}
 
@@ -386,9 +468,10 @@ export async function getAppSettingsSupabase(): Promise<AppSettings | null> {
       longitude: data.longitude,
       radius: data.radius,
       jamMasukWajib: data.jam_masuk_wajib,
-      batasKeterlambatan: data.batas_keterlambatan,
+      batasKeterlambatan: data.batas_keterlambatan ?? 5,
       jamPulang: data.jam_pulang,
       waktuBukaSebelumJadwal: extraWaktuBuka ?? (typeof data.waktu_buka_sebelum_jadwal === 'number' ? data.waktu_buka_sebelum_jadwal : undefined) ?? localWaktuBuka ?? 30,
+      tarifPerJam: extraTarifPerJam ?? (typeof data.tarif_per_jam === 'number' ? data.tarif_per_jam : undefined) ?? localTarifPerJam ?? 30000,
     };
   } catch (err) {
     console.error('Error getAppSettingsSupabase:', err);
@@ -414,18 +497,19 @@ export async function saveAppSettingsSupabase(settings: AppSettings): Promise<bo
       .from('app_settings')
       .upsert(payload, { onConflict: 'id' });
 
-    // Store extra settings like waktuBukaSebelumJadwal in __app_settings_extra__
-    if (typeof settings.waktuBukaSebelumJadwal === 'number') {
-      await supabase
-        .from('jadwal_matrix')
-        .upsert({
-          id: '__app_settings_extra__',
-          hari: 'Senin',
-          sesi_id: JSON.stringify({ waktuBukaSebelumJadwal: settings.waktuBukaSebelumJadwal }),
-          guru_ids: [],
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'id' });
-    }
+    // Store extra settings like waktuBukaSebelumJadwal, tarifPerJam in __app_settings_extra__
+    await supabase
+      .from('jadwal_matrix')
+      .upsert({
+        id: '__app_settings_extra__',
+        hari: 'Senin',
+        sesi_id: JSON.stringify({
+          waktuBukaSebelumJadwal: settings.waktuBukaSebelumJadwal,
+          tarifPerJam: settings.tarifPerJam,
+        }),
+        guru_ids: [],
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
 
     return true;
   } catch (err) {

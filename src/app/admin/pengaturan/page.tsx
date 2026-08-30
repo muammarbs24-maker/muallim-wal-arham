@@ -693,17 +693,48 @@ export default function AdminPengaturanPage() {
                 </div>
               </div>
 
-              {/* Toleransi Keterlambatan */}
-              <div className="form-group">
-                <label className="form-label" style={{ fontWeight: 700 }}>
-                  Toleransi Keterlambatan (menit)
-                </label>
-                <input
-                  type="number"
-                  className="form-input"
-                  value={settings.batasKeterlambatan}
-                  onChange={(e) => setSettings({ ...settings, batasKeterlambatan: parseInt(e.target.value) || 0 })}
-                />
+              {/* Tarif Honor Per Jam & Toleransi Keterlambatan */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--space-4)', marginTop: 'var(--space-3)' }}>
+                {/* Tarif Gaji / Honor Per Jam */}
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    💵 Tarif Honor Mengajar (Per Jam)
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontWeight: 800, color: 'var(--color-primary)', fontSize: 13 }}>
+                      Rp
+                    </span>
+                    <input
+                      type="number"
+                      className="form-input"
+                      style={{ paddingLeft: 40, fontWeight: 800, fontSize: 15 }}
+                      placeholder="30000"
+                      value={settings.tarifPerJam ?? 30000}
+                      onChange={(e) => setSettings({ ...settings, tarifPerJam: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 4, margin: 0 }}>
+                    Nominal honor per jam mengajar. Total gaji dihitung dari akumulasi jam kehadiran.
+                  </p>
+                </div>
+
+                {/* Toleransi Keterlambatan */}
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label" style={{ fontWeight: 800 }}>
+                    ⏱️ Batas Toleransi Keterlambatan (menit)
+                  </label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    style={{ fontWeight: 800, fontSize: 15 }}
+                    placeholder="5"
+                    value={settings.batasKeterlambatan ?? 5}
+                    onChange={(e) => setSettings({ ...settings, batasKeterlambatan: parseInt(e.target.value) || 0 })}
+                  />
+                  <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 4, margin: 0 }}>
+                    Jika terlambat ≤ {settings.batasKeterlambatan ?? 5} menit, jam mengajar tetap dihitung penuh (misal 2 jam). Lewat dari itu dihitung waktu hadir aktual.
+                  </p>
+                </div>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-2)' }}>

@@ -423,7 +423,7 @@ export default function AdminDashboardPage() {
               {topGuru.map(({ guru, skor }, i) => (
                 <Link
                   key={guru.id}
-                  href={`/admin/guru/${guru.id}`}
+                  href={`/admin/laporan?tab=rekap&guruId=${encodeURIComponent(guru.id)}`}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
                     padding: 'var(--space-3) var(--space-4)',
@@ -493,13 +493,18 @@ export default function AdminDashboardPage() {
                 </div>
               ) : (
                 belumAbsen.map((g, i) => (
-                  <div
+                  <Link
                     key={g.id}
+                    href={`/admin/laporan?tab=rekap&guruId=${encodeURIComponent(g.id)}`}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
                       padding: 'var(--space-3) var(--space-4)',
                       borderBottom: i < belumAbsen.length - 1 ? '1px solid var(--color-border-light)' : 'none',
+                      textDecoration: 'none',
+                      transition: 'background var(--transition-fast)',
                     }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-2)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   >
                     <div className="avatar avatar-sm" style={{ width: 28, height: 28, fontSize: 11 }}>{g.nama[0]}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -509,7 +514,7 @@ export default function AdminDashboardPage() {
                       <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)' }}>{g.jabatan}</div>
                     </div>
                     <span className="badge badge-neutral" style={{ fontSize: 10, flexShrink: 0 }}>Belum</span>
-                  </div>
+                  </Link>
                 ))
               )}
             </div>
@@ -586,7 +591,14 @@ export default function AdminDashboardPage() {
                   {todayAbsensi.map((a) => (
                     <tr key={a.id}>
                       <td style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>
-                        {a.guruNama.split(',')[0]}
+                        <Link
+                          href={`/admin/laporan?tab=rekap&guruId=${encodeURIComponent(a.guruId)}`}
+                          style={{ color: 'var(--color-primary)', fontWeight: 700, textDecoration: 'none' }}
+                          onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                          onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                        >
+                          {a.guruNama.split(',')[0]} →
+                        </Link>
                       </td>
                       <td style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)' }}>
                         {a.jamMasuk ? `${a.jamMasuk}` : '—'}
@@ -632,13 +644,18 @@ export default function AdminDashboardPage() {
                 </div>
               ) : (
                 todayJadwal.map((j, i) => (
-                  <div
+                  <Link
                     key={j.id}
+                    href={`/admin/laporan?tab=rekap&guruId=${encodeURIComponent(j.guruId)}`}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
                       padding: 'var(--space-3) var(--space-4)',
                       borderBottom: i < todayJadwal.length - 1 ? '1px solid var(--color-border-light)' : 'none',
+                      textDecoration: 'none',
+                      transition: 'background var(--transition-fast)',
                     }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-2)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                   >
                     <div style={{
                       textAlign: 'center', flexShrink: 0,
@@ -658,7 +675,7 @@ export default function AdminDashboardPage() {
                       </div>
                     </div>
                     <span className="badge badge-primary" style={{ fontSize: 10, flexShrink: 0 }}>{j.kelas}</span>
-                  </div>
+                  </Link>
                 ))
               )}
             </div>
