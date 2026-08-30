@@ -39,6 +39,7 @@ export default function EditSesiPage() {
   const [newNama, setNewNama] = useState('');
   const [newJamMulai, setNewJamMulai] = useState('08:00');
   const [newJamSelesai, setNewJamSelesai] = useState('10:00');
+  const [newMaxPengajar, setNewMaxPengajar] = useState<number>(3);
   const [newDeskripsi, setNewDeskripsi] = useState('');
   const [newWarna, setNewWarna] = useState('#DCFCE7');
 
@@ -47,9 +48,23 @@ export default function EditSesiPage() {
     setSesiState([...mockSesiList]);
   }, []);
 
-  const handleFieldChange = (id: string, field: keyof SesiConfig, value: string) => {
+  const handleFieldChange = (id: string, field: keyof SesiConfig, value: any) => {
     setSesiState((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, [field]: value } : s))
+      prev.map((s) => {
+        if (s.id === id) {
+          const updated = { ...s, [field]: value };
+          if (field === 'maxPengajar') {
+            const maxVal = Math.max(1, parseInt(value, 10) || 1);
+            updated.maxPengajar = maxVal;
+            const [hM, mM] = (updated.jamMulai || '08:00').split(':').map(Number);
+            const [hS, mS] = (updated.jamSelesai || '10:00').split(':').map(Number);
+            const durasiJam = Math.max(0, (hS * 60 + mS - (hM * 60 + mM)) / 60);
+            updated.totalJamBayar = Number((durasiJam * maxVal).toFixed(2));
+          }
+          return updated;
+        }
+        return s;
+      })
     );
   };
 
@@ -60,12 +75,19 @@ export default function EditSesiPage() {
       return;
     }
 
+    const [hM, mM] = newJamMulai.split(':').map(Number);
+    const [hS, mS] = newJamSelesai.split(':').map(Number);
+    const durasiJam = Math.max(0, (hS * 60 + mS - (hM * 60 + mM)) / 60);
+    const maxP = Math.max(1, newMaxPengajar || 1);
+
     const newId = `sesi-${Date.now()}`;
     const newEntry: SesiConfig = {
       id: newId,
       nama: newNama.trim(),
       jamMulai: newJamMulai,
       jamSelesai: newJamSelesai,
+      maxPengajar: maxP,
+      totalJamBayar: Number((durasiJam * maxP).toFixed(2)),
       deskripsi: newDeskripsi.trim() || 'Sesi jam mengajar yayasan',
       warna: newWarna,
     };
@@ -78,6 +100,7 @@ export default function EditSesiPage() {
     setNewNama('');
     setNewJamMulai('08:00');
     setNewJamSelesai('10:00');
+    setNewMaxPengajar(3);
     setNewDeskripsi('');
     setShowAddModal(false);
     setShowToast(`✓ Sesi ${newEntry.nama} berhasil ditambahkan!`);
@@ -165,6 +188,22 @@ export default function EditSesiPage() {
                 </div>
 
                 <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 700 }}>Kapasitas / Max Pengajar *</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    className="form-input"
+                    value={newMaxPengajar}
+                    onChange={(e) => setNewMaxPengajar(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    required
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>
+                    Jumlah guru maksimal yang dapat ditugaskan mengisi sesi ini
+                  </span>
+                </div>
+
+                <div className="form-group">
                   <label className="form-label" style={{ fontWeight: 700 }}>Deskripsi / Keterangan</label>
                   <input
                     type="text"
@@ -223,7 +262,7 @@ export default function EditSesiPage() {
               Sesi Mengajar
             </h1>
             <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-tertiary)' }}>
-              Pengaturan rentang waktu &amp; jam pembelajaran
+              Pengaturan rentang waktu, jam pembelajaran &amp; kuota pengajar
             </p>
           </div>
         </div>
@@ -249,7 +288,7 @@ export default function EditSesiPage() {
         </div>
       </div>
 
-      <div className="admin-content" style={{ maxWidth: 880, margin: '0 auto' }}>
+      <div className="admin-content" style={{ maxWidth: 940, margin: '0 auto' }}>
         
         {/* Mobile Action Buttons */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }} className="show-on-mobile-flex">
@@ -289,7 +328,7 @@ export default function EditSesiPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flex: 1, minWidth: 200 }}>
             <Info size={16} color="var(--color-primary)" style={{ flexShrink: 0 }} />
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>
-              <strong>Petunjuk:</strong> Edit jam operasional di bawah lalu tekan <strong>Simpan</strong>.
+              <strong>Petunjuk:</strong> Edit jam operasional &amp; <strong>Max Pengajar</strong> di bawah lalu tekan <strong>Simpan Jam Sesi</strong>.
             </div>
           </div>
           <span className="badge badge-primary" style={{ flexShrink: 0, fontWeight: 700, fontSize: 10 }}>{sesiState.length} Sesi Terdaftar</span>
@@ -301,6 +340,7 @@ export default function EditSesiPage() {
             const isDefault = DEFAULT_SESI_IDS.includes(sesi.id);
             const icon = SESI_ICONS[sesi.id] || <Clock size={16} color="var(--color-primary)" />;
             const borderCol = sesi.id === 'pagi' ? '#10B981' : sesi.id === 'siang' ? '#F59E0B' : sesi.id === 'sore' ? '#0EA5E9' : sesi.id === 'tahfidz' ? '#8B5CF6' : 'var(--color-primary)';
+            const maxP = sesi.maxPengajar ?? (sesi.id === 'pagi' ? 1 : 3);
 
             return (
               <div
@@ -325,6 +365,9 @@ export default function EditSesiPage() {
                   </div>
                   
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span className="badge badge-neutral" style={{ fontSize: 10, fontWeight: 700, background: 'white', border: '1px solid var(--color-border)' }}>
+                      👥 Kuota: {maxP} Pengajar
+                    </span>
                     <span className="badge badge-primary" style={{ fontSize: 10, fontVariantNumeric: 'tabular-nums' }}>
                       {sesi.jamMulai} – {sesi.jamSelesai}
                     </span>
@@ -385,6 +428,23 @@ export default function EditSesiPage() {
                         className="form-input"
                         value={sesi.jamSelesai}
                         onChange={(e) => handleFieldChange(sesi.id, 'jamSelesai', e.target.value)}
+                        required
+                        style={{ fontSize: 12 }}
+                      />
+                    </div>
+
+                    {/* Max Pengajar */}
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontWeight: 700, fontSize: 11 }}>
+                        Max Pengajar *
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        className="form-input"
+                        value={maxP}
+                        onChange={(e) => handleFieldChange(sesi.id, 'maxPengajar', e.target.value)}
                         required
                         style={{ fontSize: 12 }}
                       />
