@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Users, Search, Plus, CheckCircle2, Clock, XCircle, X, Shield, Key, Mail, Phone, UserCheck, AlertCircle, Copy, Check, DollarSign } from 'lucide-react';
-import { mockGuru, hitungSkorKedisiplinan, authConfig, savePersistedGuru, loadPersistedData, mockAbsensi, mockSettings } from '@/lib/mockData';
+import { Users, Search, Plus, CheckCircle2, Clock, XCircle, X, Shield, Key, Mail, Phone, UserCheck, AlertCircle, Copy, Check, DollarSign, Trash2 } from 'lucide-react';
+import { mockGuru, hitungSkorKedisiplinan, authConfig, savePersistedGuru, loadPersistedData, mockAbsensi, mockSettings, mockJadwalMatrix, savePersistedJadwalMatrix, syncMatrixToJadwal } from '@/lib/mockData';
 import { getInitials, generateNipYayasan, formatRupiah, formatJamLengkap } from '@/lib/utils';
 import { sendTeacherWelcomeEmail } from '@/lib/emailService';
-import { getGurusSupabase, upsertGuruSupabase, getAbsensiSupabase, getAppSettingsSupabase } from '@/lib/supabaseClient';
+import { getGurusSupabase, upsertGuruSupabase, getAbsensiSupabase, getAppSettingsSupabase, deleteGuruSupabase } from '@/lib/supabaseClient';
 import type { Guru, AbsensiRecord, AppSettings } from '@/types';
 
 export default function AdminGuruPage() {
@@ -19,6 +19,8 @@ export default function AdminGuruPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copiedPass, setCopiedPass] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [guruToDelete, setGuruToDelete] = useState<Guru | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     loadPersistedData();
@@ -152,6 +154,65 @@ export default function AdminGuruPage() {
     setShowAddModal(false);
     setToastMessage(`✓ Berhasil mendaftarkan ${newGuru.nama}! Email berisi NIP (${newGuru.nip}) dan kredensial login telah dikirim ke ${newGuru.email}.`);
     setTimeout(() => setToastMessage(null), 6000);
+  };
+
+  const handleConfirmDeleteGuru = async () => {
+    if (!guruToDelete) return;
+    setIsDeleting(true);
+    const deletedId = guruToDelete.id;
+    const deletedEmail = guruToDelete.email;
+    const deletedNama = guruToDelete.nama;
+
+    // 1. Filter state & mock
+    const updated = guruList.filter((g) => g.id !== deletedId);
+    setGuruList(updated);
+    mockGuru.length = 0;
+    mockGuru.push(...updated);
+    savePersistedGuru(updated);
+
+    // 2. Clear local session if matches
+    if (typeof window !== 'undefined') {
+      const currentSavedId = localStorage.getItem('logged_in_guru_id');
+      const currentSavedEmail = localStorage.getItem('logged_in_guru_email');
+      if (currentSavedId === deletedId || currentSavedEmail === deletedEmail) {
+        localStorage.removeItem('logged_in_guru_id');
+        localStorage.removeItem('logged_in_guru_email');
+        localStorage.removeItem('muallim_guru_user');
+      }
+    }
+
+    // 3. Remove from matrix schedules
+    mockJadwalMatrix.forEach((m) => {
+      if (m.guruIds.includes(deletedId)) {
+        m.guruIds = m.guruIds.filter((gid) => gid !== deletedId);
+      }
+    });
+    savePersistedJadwalMatrix(mockJadwalMatrix);
+    syncMatrixToJadwal();
+
+    // 4. Delete in Supabase
+    try {
+      if (deletedId) {
+        await deleteGuruSupabase(deletedId);
+        const { supabase } = await import('@/lib/supabaseClient');
+        const { data: matrixData } = await supabase.from('jadwal_matrix').select('*');
+        if (Array.isArray(matrixData)) {
+          for (const m of matrixData) {
+            if (Array.isArray(m.guru_ids) && m.guru_ids.includes(deletedId)) {
+              const updatedIds = m.guru_ids.filter((gid: string) => gid !== deletedId);
+              await supabase.from('jadwal_matrix').update({ guru_ids: updatedIds }).eq('id', m.id);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Error deleting guru from Supabase:', e);
+    }
+
+    setIsDeleting(false);
+    setGuruToDelete(null);
+    setToastMessage(`✓ Guru "${deletedNama}" berhasil dihapus.`);
+    setTimeout(() => setToastMessage(null), 4000);
   };
 
   const filteredGuru = guruList.filter((g) => {
@@ -344,9 +405,20 @@ export default function AdminGuruPage() {
                           </div>
                         </td>
                         <td>
-                          <Link href={`/admin/laporan?tab=rekap&guruId=${encodeURIComponent(g.id)}`} className="btn btn-ghost btn-sm" style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)' }}>
-                            Detail →
-                          </Link>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Link href={`/admin/laporan?tab=rekap&guruId=${encodeURIComponent(g.id)}`} className="btn btn-ghost btn-sm" style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', padding: '4px 8px' }}>
+                              Detail →
+                            </Link>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => setGuruToDelete(g)}
+                              style={{ padding: '4px 8px', color: 'var(--color-danger)' }}
+                              title={`Hapus ${g.nama}`}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -534,6 +606,56 @@ export default function AdminGuruPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL KONFIRMASI HAPUS GURU ─── */}
+      {guruToDelete && (
+        <div className="modal-overlay" onClick={() => !isDeleting && setGuruToDelete(null)}>
+          <div className="modal" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 'var(--radius-md)', background: '#FEE2E2', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Trash2 size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 'var(--font-size-base)', fontWeight: 800 }}>Hapus Guru</h3>
+                  <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>Konfirmasi penghapusan data pengajar</p>
+                </div>
+              </div>
+              <button className="btn btn-ghost btn-sm" onClick={() => !isDeleting && setGuruToDelete(null)} disabled={isDeleting}>
+                <X size={16} />
+              </button>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>
+                Apakah Anda yakin ingin menghapus <strong>{guruToDelete.nama}</strong> ({guruToDelete.nip})?
+              </p>
+              <div style={{ padding: 10, borderRadius: 'var(--radius-md)', background: '#FEF2F2', border: '1px solid #FECACA', fontSize: 12, color: '#991B1B' }}>
+                ⚠️ <em>Tindakan ini akan menghapus data guru dari sistem dan membersihkan penugasan jadwal terkait.</em>
+              </div>
+            </div>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: 'var(--space-3) var(--space-4)' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setGuruToDelete(null)}
+                disabled={isDeleting}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                onClick={handleConfirmDeleteGuru}
+                disabled={isDeleting}
+                style={{ background: '#DC2626', color: 'white', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
+              >
+                <Trash2 size={14} />
+                {isDeleting ? 'Menghapus...' : 'Ya, Hapus Guru'}
+              </button>
+            </div>
           </div>
         </div>
       )}
