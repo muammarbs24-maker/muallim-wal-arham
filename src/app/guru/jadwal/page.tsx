@@ -8,7 +8,7 @@ import {
   currentGuru, mockJadwal, mockJadwalMatrix, mockGuru, mockSesiList, mockAbsensi,
   syncMatrixToJadwal, loadPersistedData, mockSettings, savePersistedAbsensi
 } from '@/lib/mockData';
-import { getTodayStringWITA, getDayOfWeekWITA } from '@/lib/utils';
+import { getTodayStringWITA, getDayOfWeekWITA, getTomorrowStringWITA, getTomorrowDayOfWeekWITA } from '@/lib/utils';
 import type { DayOfWeek, Jadwal, JadwalSesiEntry, SesiConfig, Guru, AppSettings, AbsensiRecord } from '@/types';
 
 const DAYS: DayOfWeek[] = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Ahad'];
@@ -31,8 +31,8 @@ export default function JadwalPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isHadirConfirmed, setIsHadirConfirmed] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
-    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
-    return localStorage.getItem('jadwal_besok_confirmed_date') === tomorrow.toISOString().split('T')[0];
+    const tomorrowStr = getTomorrowStringWITA();
+    return localStorage.getItem('jadwal_besok_confirmed_date') === tomorrowStr;
   });
 
   const refreshData = () => {
@@ -123,12 +123,8 @@ export default function JadwalPage() {
   }, []);
 
   // Hitung jadwal besok
-  const daysArr: DayOfWeek[] = ['Ahad', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-  const now = new Date();
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowDateStr = tomorrow.toISOString().split('T')[0];
-  const tomorrowDayName = daysArr[tomorrow.getDay()] as DayOfWeek;
+  const tomorrowDateStr = getTomorrowStringWITA();
+  const tomorrowDayName = getTomorrowDayOfWeekWITA();
 
   const mySchedules = schedulesList.filter(
     (j) => (j.guruId === activeGuru.id || j.guruNama === activeGuru.nama || (activeGuru.nama && j.guruNama.toLowerCase() === activeGuru.nama.toLowerCase())) && j.aktif
@@ -143,9 +139,7 @@ export default function JadwalPage() {
 
   // Handle konfirmasi siap hadir
   const markJadwalBesokConfirmed = () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowDateStr = tomorrow.toISOString().split('T')[0];
+    const tomorrowDateStr = getTomorrowStringWITA();
     if (typeof window !== 'undefined') {
       localStorage.setItem('jadwal_besok_confirmed_date', tomorrowDateStr);
       window.dispatchEvent(new Event('jadwal_besok_confirmed'));

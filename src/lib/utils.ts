@@ -158,10 +158,32 @@ export function hitungDurasiMenit(
   return Math.max(0, timeToMinutes(jamPulang) - timeToMinutes(jamMasuk));
 }
 
-export function getDayOfWeekWITA(): DayOfWeek {
+export function getTomorrowStringWITA(): string {
+  const todayStr = getTodayStringWITA();
+  const [y, m, d] = todayStr.split('-').map(Number);
+  const nextDate = new Date(Date.UTC(y, m - 1, d + 1));
+  const year = nextDate.getUTCFullYear();
+  const month = String(nextDate.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(nextDate.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function getDayOfWeekWITA(dateStr?: string): DayOfWeek {
   const days: DayOfWeek[] = ['Ahad', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-  const now = getNowWITA();
-  return days[now.getDay()];
+  if (dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(Date.UTC(y, m - 1, d));
+    return days[date.getUTCDay()];
+  }
+  const todayStr = getTodayStringWITA();
+  const [y, m, d] = todayStr.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return days[date.getUTCDay()];
+}
+
+export function getTomorrowDayOfWeekWITA(): DayOfWeek {
+  const tomorrowStr = getTomorrowStringWITA();
+  return getDayOfWeekWITA(tomorrowStr);
 }
 
 export function minutesToTimeString(totalMinutes: number): string {

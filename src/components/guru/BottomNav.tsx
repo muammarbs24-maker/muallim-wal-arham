@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Home, Calendar, Activity, BarChart2, User, LogOut } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { currentGuru, mockJadwal, mockJadwalMatrix, mockSesiList, syncMatrixToJadwal, loadPersistedData } from '@/lib/mockData';
-import { getInitials } from '@/lib/utils';
+import { getInitials, getTomorrowStringWITA, getTomorrowDayOfWeekWITA } from '@/lib/utils';
 import type { Guru } from '@/types';
 
 const JADWAL_CONFIRMED_KEY = 'jadwal_besok_confirmed_date';
@@ -27,18 +27,13 @@ export default function GuruNav() {
 
   // Hitung tanggal besok sebagai string 'YYYY-MM-DD'
   const getTomorrowDateStr = () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
+    return getTomorrowStringWITA();
   };
 
   // Cek apakah badge harus ditampilkan
   const checkJadwalBesok = useCallback((guru: Guru) => {
-    const daysArr = ['Ahad', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowDayName = daysArr[tomorrow.getDay()];
-    const tomorrowDateStr = tomorrow.toISOString().split('T')[0];
+    const tomorrowDayName = getTomorrowDayOfWeekWITA();
+    const tomorrowDateStr = getTomorrowStringWITA();
 
     // Cek apakah sudah dikonfirmasi (klik Siap Hadir / Tidak Bisa Hadir)
     const confirmedDate = typeof window !== 'undefined' ? localStorage.getItem(JADWAL_CONFIRMED_KEY) : null;

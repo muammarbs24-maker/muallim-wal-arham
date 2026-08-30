@@ -13,8 +13,8 @@ import {
   formatDateWITA, greetingByTime,
   getNowWITA, getDistanceInMeters,
   timeToMinutes, getDayOfWeekWITA,
-  getTodayStringWITA, formatTimeWITA,
-  subtractMinutesFromTime, isSessionWindowOpen,
+  getTodayStringWITA, getTomorrowStringWITA, getTomorrowDayOfWeekWITA,
+  formatTimeWITA, subtractMinutesFromTime, isSessionWindowOpen,
   getCurrentMinutesWITA, calculateActualTeachingHours, formatRupiah
 } from '@/lib/utils';
 import {
@@ -293,10 +293,12 @@ export default function BerandaPage() {
   }, [sesiList, guruData, hariIni, todayStr]);
 
   // ── Jadwal Besok ──────────────────────────────────────────────────────────
-  const daysArr7: DayOfWeek[] = ['Ahad', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-  const tomorrowDate = useMemo(() => { const d = new Date(); d.setDate(d.getDate() + 1); return d; }, []);
-  const tomorrowDateStr = tomorrowDate.toISOString().split('T')[0];
-  const tomorrowDayName = daysArr7[tomorrowDate.getDay()];
+  const tomorrowDateStr = useMemo(() => getTomorrowStringWITA(), []);
+  const tomorrowDayName = useMemo(() => getTomorrowDayOfWeekWITA(), []);
+  const tomorrowDate = useMemo(() => {
+    const [y, m, d] = tomorrowDateStr.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }, [tomorrowDateStr]);
   const tomorrowSchedules = useMemo(() =>
     sesiList.map((s) => buildMissionJadwal(s, guruData, tomorrowDayName, tomorrowDateStr)),
     [sesiList, guruData, tomorrowDayName, tomorrowDateStr]);
@@ -369,7 +371,7 @@ export default function BerandaPage() {
     return Array.from({ length: 6 }, (_, i) => {
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       const dayName = ['Ahad', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][d.getDay()];
       const isPast = d <= today;
       const isToday = dateStr === todayStr;
@@ -511,20 +513,24 @@ export default function BerandaPage() {
     return !isDone && isOpen && !isPast;
   });
 
-  // A. Sesi Aktif yang DIDRAFTARI oleh Guru ini (Tombol Absen ON)
-  const activeJadwalList = ongoingSessionsToday.filter((j) => myTodayBookingIds.has(String(j.sesiId)));
+  // A. Sesi Hari Ini yang DIDAFTARI oleh Guru ini (Tampil di tab 'Sedang Aktif')
+  const activeJadwalList = todayJadwal.filter((j) => {
+    if (!myTodayBookingIds.has(String(j.sesiId))) return false;
+    const sess = sessionsMap[j.id];
+    const isDone = sess?.isDone || false;
+    return !isDone;
+  });
 
-  // B. Sesi Aktif yang TIDAK DIDAFTARI oleh Guru ini (Tombol Absen TIDAK TERLIHAT)
+  // B. Sesi Aktif saat ini yang TIDAK DIDAFTARI oleh Guru ini (Tombol Absen TIDAK TERLIHAT)
   const unregisteredOngoingList = ongoingSessionsToday.filter((j) => !myTodayBookingIds.has(String(j.sesiId)));
 
-  // 2. Sesi Mendatang Hari Ini (belum mulai / belum dibuka)
+  // 2. Sesi Hari Ini yang Belum Selesai (Bisa didaftarkan / dilihat di tab 'Yang Akan Datang')
   const todayUpcomingSessions = todayJadwal.filter((j) => {
     const sess = sessionsMap[j.id];
     const isDone = sess?.isDone || false;
-    const isOpen = isSessionWindowOpen(j.jamMulai, leadMinutes, currentMinutes);
     const endMins = timeToMinutes(j.jamSelesai);
     const isPast = currentMinutes > endMins;
-    return !isDone && !isOpen && !isPast;
+    return !isDone && !isPast;
   });
 
   const upcomingJadwal = todayUpcomingSessions.find((j) => myTodayBookingIds.has(String(j.sesiId)));
@@ -1762,25 +1768,57 @@ export default function BerandaPage() {
               {locState === 'invalid' && (
                 <div style={{ padding: '16px', background: '#FEF2F2', border: '1.5px solid #FCA5A5', borderRadius: 'var(--radius-lg)', marginBottom: 'var(--space-3)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#991B1B', fontWeight: 800, fontSize: 14 }}>
-                    <AlertCircle size={18} color="#DC2626" /> Di Luar Jangkauan Absensi
+                    <AlertCircle size={18} color="#DC2626" /> Lokasi Tidak Sesuai (Di Luar Jangkauan)
                   </div>
                   <p style={{ fontSize: 12.5, color: '#7F1D1D', marginTop: 6, lineHeight: 1.5 }}>
                     Anda terdeteksi berada <strong>{distanceFromOffice !== null ? `${distanceFromOffice} meter` : 'jauh'}</strong> dari titik lokasi yayasan
-                    (Maksimal radius: <strong>{appSettings.radius || 100} meter</strong>).
+                    (Maksimal toleransi radius: <strong>{appSettings.radius || 100} meter</strong>). Silakan mendekat ke lokasi yayasan.
                   </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
+                    <button
+                      type="button"
+                      onClick={() => handleCheckLocation(jadwal.id)}
+                      disabled={!!isProcessing}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        padding: '12px 14px',
+                        borderRadius: 'var(--radius-md)',
+                        fontWeight: 800,
+                        fontSize: 13,
+                        background: '#ffffff',
+                        color: '#374151',
+                        border: '1.5px solid #D1D5DB',
+                        cursor: 'pointer',
+                        boxShadow: 'var(--shadow-sm)'
+                      }}
+                    >
+                      <RotateCcw size={15} /> Coba Lagi
+                    </button>
                     <a
                       href={`https://www.google.com/maps/dir/?api=1&destination=${appSettings.latitude},${appSettings.longitude}&travelmode=driving`}
-                      target="_blank" rel="noopener noreferrer"
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 16px', borderRadius: 'var(--radius-md)', fontWeight: 800, fontSize: 13, textDecoration: 'none', background: 'linear-gradient(135deg, #0284C7, #0369A1)', color: '#ffffff', border: 'none' }}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        padding: '12px 14px',
+                        borderRadius: 'var(--radius-md)',
+                        fontWeight: 800,
+                        fontSize: 13,
+                        textDecoration: 'none',
+                        background: 'linear-gradient(135deg, #0284C7, #0369A1)',
+                        color: '#ffffff',
+                        border: 'none',
+                        boxShadow: 'var(--shadow-sm)'
+                      }}
                     >
-                      <Navigation size={17} /> Menuju Lokasi Absen (Buka Rute Maps)
+                      <Navigation size={15} /> Petunjuk Arah
                     </a>
-                    <button type="button" onClick={() => handleCheckLocation(jadwal.id)} disabled={!!isProcessing}
-                      style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 14px', borderRadius: 'var(--radius-md)', fontWeight: 700, fontSize: 12, background: '#ffffff', color: '#374151', border: '1px solid #D1D5DB', cursor: 'pointer' }}
-                    >
-                      <RotateCcw size={14} /> Cek Ulang Lokasi
-                    </button>
                   </div>
                 </div>
               )}
@@ -1789,7 +1827,7 @@ export default function BerandaPage() {
                 <div>
                   <div style={{ padding: '10px 14px', background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-3)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#166534', fontSize: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
-                      <CheckCircle2 size={16} color="#16A34A" /> Lokasi Terverifikasi
+                      <CheckCircle2 size={16} color="#16A34A" /> Lokasi Sesuai & Terverifikasi
                     </div>
                     <span style={{ fontSize: 11, fontWeight: 600, color: '#15803D' }}>
                       Jarak: {distanceFromOffice !== null ? `${distanceFromOffice}m` : '0m'} (Maks: {appSettings.radius || 100}m)
@@ -1800,7 +1838,7 @@ export default function BerandaPage() {
                     <button
                       type="button"
                       className="absen-btn-main"
-                      onClick={() => handleAbsenMasuk(jadwal)}
+                      onClick={() => openSelfieModal(jadwal)}
                       disabled={isThisProcessing}
                       style={{
                         cursor: 'pointer',
@@ -1821,9 +1859,9 @@ export default function BerandaPage() {
                       }}
                     >
                       {isThisProcessing ? (
-                        <><span className="animate-spin"><Clock size={18} /></span> Memproses Absen...</>
+                        <><span className="animate-spin"><Clock size={18} /></span> Memproses...</>
                       ) : (
-                        <><LogIn size={20} /> Mulai Absen Masuk ({jadwal.jamMulai} WITA)</>
+                        <><Camera size={20} /> Mulai Verifikasi Wajah ({jadwal.jamMulai} WITA)</>
                       )}
                     </button>
                   ) : (
