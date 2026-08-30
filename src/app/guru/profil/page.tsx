@@ -71,16 +71,47 @@ export default function ProfilPage() {
       {/* Profile Hero */}
       <div style={{ background: 'var(--color-primary)', padding: 'var(--space-8) var(--space-5) var(--space-10)', textAlign: 'center' }}>
         <div style={{ position: 'relative', display: 'inline-block', marginBottom: 'var(--space-4)' }}>
-          <div className="avatar avatar-2xl" style={{ margin: '0 auto', border: '3px solid rgba(255,255,255,0.3)' }}>
-            {getInitials(guruData.nama)}
+          <div
+            className="avatar avatar-2xl"
+            style={{
+              margin: '0 auto',
+              border: '3px solid rgba(255,255,255,0.4)',
+              width: 84,
+              height: 84,
+              borderRadius: '50%',
+              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(255,255,255,0.2)',
+              fontSize: 26,
+              fontWeight: 800,
+              color: 'white',
+              boxShadow: 'var(--shadow-md)'
+            }}
+          >
+            {guruData.foto ? (
+              <img
+                src={guruData.foto}
+                alt={guruData.nama}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            ) : (
+              getInitials(guruData.nama)
+            )}
           </div>
-          <button style={{
-            position: 'absolute', bottom: 0, right: 0,
-            width: 28, height: 28, borderRadius: '50%',
-            background: 'white', border: 'none', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: 'var(--shadow-md)',
-          }}>
+          <button
+            type="button"
+            onClick={() => router.push('/guru/profil/edit')}
+            style={{
+              position: 'absolute', bottom: 0, right: 0,
+              width: 28, height: 28, borderRadius: '50%',
+              background: 'white', border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: 'var(--shadow-md)',
+            }}
+            title="Edit Foto Profil"
+          >
             <Camera size={14} color="var(--color-primary)" />
           </button>
         </div>
@@ -145,7 +176,7 @@ export default function ProfilPage() {
               icon={<Lock size={16} />}
               label="Ganti Kata Sandi"
               desc="Perbarui kata sandi akun Anda"
-              onClick={() => {}}
+              onClick={() => router.push('/guru/ganti-password')}
               last
             />
           </div>

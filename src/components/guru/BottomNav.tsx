@@ -211,7 +211,17 @@ export default function GuruNav() {
           marginTop: 'auto',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
-            <div className="avatar avatar-sm">{getInitials(activeGuru.nama)}</div>
+            <div className="avatar avatar-sm" style={{ overflow: 'hidden' }}>
+              {activeGuru.foto ? (
+                <img
+                  src={activeGuru.foto}
+                  alt={activeGuru.nama}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                getInitials(activeGuru.nama)
+              )}
+            </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {activeGuru.nama.split(',')[0]}
