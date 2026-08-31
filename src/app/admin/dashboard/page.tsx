@@ -111,48 +111,70 @@ export default function AdminDashboardPage() {
     }
   };
 
-  useEffect(() => {
-    refreshData();
-
-    import('@/lib/supabaseClient').then(({ getAbsensiSupabase, getGurusSupabase, getJadwalMatrixSupabase, getSesiListSupabase }) => {
-      Promise.all([
+  const fetchLiveDashboard = async () => {
+    try {
+      const { getAbsensiSupabase, getGurusSupabase, getJadwalMatrixSupabase, getSesiListSupabase } = await import('@/lib/supabaseClient');
+      const [absData, gurusData, matrixData, sesiData] = await Promise.all([
         getAbsensiSupabase(),
         getGurusSupabase(),
         getJadwalMatrixSupabase(),
         getSesiListSupabase()
-      ]).then(([absData, gurusData, matrixData, sesiData]) => {
-        let activeGurus = guruList;
-        if (gurusData && gurusData.length > 0) {
-          setGuruList(gurusData);
-          mockGuru.length = 0;
-          mockGuru.push(...gurusData);
-          activeGurus = gurusData;
-        }
+      ]);
 
-        if (matrixData && matrixData.length > 0) {
-          mockJadwalMatrix.length = 0;
-          mockJadwalMatrix.push(...matrixData);
+      let activeGurus = guruList;
+      if (gurusData && gurusData.length > 0) {
+        setGuruList(gurusData);
+        mockGuru.length = 0;
+        mockGuru.push(...gurusData);
+        activeGurus = gurusData;
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('muallim_guru_list', JSON.stringify(gurusData));
+          } catch (e) {}
         }
+      }
 
-        if (sesiData && sesiData.length > 0) {
-          mockSesiList.length = 0;
-          mockSesiList.push(...sesiData);
-        }
+      if (matrixData && matrixData.length > 0) {
+        mockJadwalMatrix.length = 0;
+        mockJadwalMatrix.push(...matrixData);
+      }
 
-        if (absData !== null && absData !== undefined) {
-          // Jalankan auto-alpa untuk sesi mengajar hari ini yang jam selesainya sudah terlewati
-          const updatedWithAutoAlfa = checkAndApplyAutoAlfa(
-            activeGurus,
-            mockJadwalMatrix,
-            mockSesiList,
-            absData
-          );
-          setAbsensiList(updatedWithAutoAlfa);
-          mockAbsensi.length = 0;
-          mockAbsensi.push(...updatedWithAutoAlfa);
+      if (sesiData && sesiData.length > 0) {
+        mockSesiList.length = 0;
+        mockSesiList.push(...sesiData);
+      }
+
+      if (Array.isArray(absData)) {
+        const updatedWithAutoAlfa = checkAndApplyAutoAlfa(
+          activeGurus,
+          mockJadwalMatrix,
+          mockSesiList,
+          absData
+        );
+        setAbsensiList(updatedWithAutoAlfa);
+        mockAbsensi.length = 0;
+        mockAbsensi.push(...updatedWithAutoAlfa);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('muallim_absensi_list', JSON.stringify(updatedWithAutoAlfa));
+          } catch (e) {}
         }
-      }).catch(() => {});
-    }).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('Live dashboard fetch error:', err);
+    }
+  };
+
+  useEffect(() => {
+    refreshData();
+    fetchLiveDashboard();
+
+    // Auto-polling every 4 seconds
+    const interval = setInterval(() => {
+      fetchLiveDashboard();
+    }, 4000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const todayStr   = getTodayStringWITA();

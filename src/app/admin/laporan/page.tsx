@@ -27,6 +27,7 @@ import {
   X,
   Eye,
   ShieldCheck,
+  RefreshCw,
 } from 'lucide-react';
 import {
   mockAbsensi,
@@ -94,7 +95,62 @@ function LaporanContent() {
   const [appSettings, setAppSettings] = useState<AppSettings>(mockSettings);
   const [adminEmail, setAdminEmail] = useState(masterAdmin.email || 'admin@muallim.sch.id');
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [showToast, setShowToast] = useState<string | null>(null);
+
+  const fetchLiveSupabaseData = async (manual = false) => {
+    if (manual) setIsRefreshing(true);
+    try {
+      const { getAbsensiSupabase, getGurusSupabase, getAdminAccountSupabase, getAppSettingsSupabase } = await import('@/lib/supabaseClient');
+      
+      const [absData, gurus, settings, admin] = await Promise.all([
+        getAbsensiSupabase(),
+        getGurusSupabase(),
+        getAppSettingsSupabase(),
+        getAdminAccountSupabase(),
+      ]);
+
+      if (Array.isArray(absData)) {
+        setAbsensiList(absData);
+        mockAbsensi.length = 0;
+        mockAbsensi.push(...absData);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('muallim_absensi_list', JSON.stringify(absData));
+          } catch (e) {}
+        }
+      }
+
+      if (Array.isArray(gurus) && gurus.length > 0) {
+        setGuruList(gurus);
+        mockGuru.length = 0;
+        mockGuru.push(...gurus);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('muallim_guru_list', JSON.stringify(gurus));
+          } catch (e) {}
+        }
+      }
+
+      if (settings) {
+        setAppSettings(settings);
+        Object.assign(mockSettings, settings);
+      }
+
+      if (admin?.email) {
+        setAdminEmail(admin.email);
+      }
+
+      if (manual) {
+        setShowToast('✓ Data laporan presensi berhasil diperbarui.');
+        setTimeout(() => setShowToast(null), 3000);
+      }
+    } catch (err) {
+      console.warn('Error fetching live supabase data:', err);
+    } finally {
+      if (manual) setIsRefreshing(false);
+    }
+  };
 
   const refreshData = () => {
     loadPersistedData();
@@ -106,8 +162,6 @@ function LaporanContent() {
           if (Array.isArray(parsed)) {
             setAbsensiList([...parsed]);
           }
-        } else {
-          setAbsensiList([]);
         }
 
         const savedGurus = localStorage.getItem('muallim_guru_list');
@@ -117,9 +171,6 @@ function LaporanContent() {
             setGuruList([...parsed]);
             setSelectedGuruId((prev) => prev || parsed.find((g: any) => g.aktif)?.id || parsed[0].id);
           }
-        } else {
-          setGuruList([...mockGuru]);
-          setSelectedGuruId((prev) => prev || mockGuru.find(g => g.aktif)?.id || mockGuru[0].id);
         }
       } catch (e) {}
     }
@@ -137,42 +188,14 @@ function LaporanContent() {
 
   useEffect(() => {
     refreshData();
+    fetchLiveSupabaseData();
 
-    import('@/lib/supabaseClient').then(({ getAbsensiSupabase, getGurusSupabase, getAdminAccountSupabase, getAppSettingsSupabase }) => {
-      getAbsensiSupabase().then((data) => {
-        if (data !== null && data !== undefined) {
-          setAbsensiList(data);
-          mockAbsensi.length = 0;
-          mockAbsensi.push(...data);
-        }
-      }).catch(() => {});
+    // Auto-polling every 4 seconds so any teacher attendance immediately reflects
+    const interval = setInterval(() => {
+      fetchLiveSupabaseData();
+    }, 4000);
 
-      getGurusSupabase().then((gurus) => {
-        if (gurus && gurus.length > 0) {
-          setGuruList(gurus);
-          mockGuru.length = 0;
-          mockGuru.push(...gurus);
-          if (urlGuruId) {
-            setSelectedGuruId(urlGuruId);
-          } else {
-            setSelectedGuruId((prev) => prev || gurus.find(g => g.aktif)?.id || gurus[0].id);
-          }
-        }
-      }).catch(() => {});
-
-      getAppSettingsSupabase().then((s) => {
-        if (s) {
-          setAppSettings(s);
-          Object.assign(mockSettings, s);
-        }
-      }).catch(() => {});
-
-      getAdminAccountSupabase().then((admin) => {
-        if (admin?.email) {
-          setAdminEmail(admin.email);
-        }
-      }).catch(() => {});
-    }).catch(() => {});
+    return () => clearInterval(interval);
   }, []);
 
   // Set default selected guru when teacher list loaded
@@ -492,6 +515,30 @@ function LaporanContent() {
 
         {/* Action buttons on top right */}
         <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={() => fetchLiveSupabaseData(true)}
+            disabled={isRefreshing}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontWeight: 700,
+              fontSize: '12px',
+              padding: '6px 12px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border)',
+              backgroundColor: 'var(--color-surface)',
+              color: 'var(--color-text-secondary)',
+              transition: 'all 0.15s ease',
+              boxShadow: 'var(--shadow-xs)',
+            }}
+            title="Segarkan data presensi terbaru dari server"
+          >
+            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} /> {isRefreshing ? 'Memuat...' : 'Segarkan'}
+          </button>
+
           <button
             type="button"
             className="btn btn-outline btn-sm"
@@ -823,7 +870,7 @@ function LaporanContent() {
                     {filteredHarianData.map((a) => {
                       const g = (guruList.length > 0 ? guruList : mockGuru).find((g) => g.id === a.guruId);
                       const schedule = mockJadwal.find((j) => j.guruId === a.guruId && j.hari === harianDayOfWeek && j.aktif);
-                      const jadwalLabel = schedule ? `${schedule.jamMulai}–${schedule.jamSelesai}` : '—';
+                      const jadwalLabel = a.sesiNama || (schedule ? `${schedule.jamMulai}–${schedule.jamSelesai}` : (a.keterangan?.includes('Misi:') ? a.keterangan.replace('Misi:', '').trim() : 'Sesi Mengajar'));
                       const durasi = hitungDurasi(a.jamMasuk, a.jamPulang);
                       const colors = STATUS_COLORS[a.status] || STATUS_COLORS.belum_absen;
                       const isLate = a.status === 'terlambat';

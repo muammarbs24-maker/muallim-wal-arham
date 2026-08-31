@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Search, Filter, Download, Camera, CheckCircle2, XCircle, Clock, Eye, AlertCircle, Sparkles } from 'lucide-react';
+import { Search, Filter, Download, Camera, CheckCircle2, XCircle, Clock, Eye, AlertCircle, Sparkles, RefreshCw } from 'lucide-react';
 import { mockAbsensi, mockGuru, mockSettings, loadPersistedData, savePersistedAbsensi } from '@/lib/mockData';
 import { getStatusLabel, getTodayStringWITA, formatRupiah, cleanupExpiredVerifiedPhotos } from '@/lib/utils';
 import type { AttendanceStatus, AbsensiRecord, Guru, AppSettings } from '@/types';
@@ -25,7 +25,57 @@ export default function AdminAbsensiPage() {
   const [appSettings, setAppSettings] = useState<AppSettings>(mockSettings);
   const [selectedPhotoRecord, setSelectedPhotoRecord] = useState<AbsensiRecord | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const fetchLiveSupabaseData = async (manual = false) => {
+    if (manual) setIsRefreshing(true);
+    try {
+      const { getAbsensiSupabase, getGurusSupabase, getAppSettingsSupabase } = await import('@/lib/supabaseClient');
+      const [s, data, gurus] = await Promise.all([
+        getAppSettingsSupabase(),
+        getAbsensiSupabase(),
+        getGurusSupabase(),
+      ]);
+
+      if (s) setAppSettings(s);
+
+      if (Array.isArray(data)) {
+        const { updated, cleanedCount } = cleanupExpiredVerifiedPhotos(data);
+        if (cleanedCount > 0) {
+          savePersistedAbsensi(updated);
+        }
+        setAbsensiList(updated);
+        mockAbsensi.length = 0;
+        mockAbsensi.push(...updated);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('muallim_absensi_list', JSON.stringify(updated));
+          } catch (e) {}
+        }
+      }
+
+      if (Array.isArray(gurus) && gurus.length > 0) {
+        setGuruList(gurus);
+        mockGuru.length = 0;
+        mockGuru.push(...gurus);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('muallim_guru_list', JSON.stringify(gurus));
+          } catch (e) {}
+        }
+      }
+
+      if (manual) {
+        setToastMessage('✓ Data absensi berhasil diperbarui.');
+        setTimeout(() => setToastMessage(null), 3000);
+      }
+    } catch (err) {
+      console.warn('Error fetchLiveSupabaseData:', err);
+    } finally {
+      if (manual) setIsRefreshing(false);
+    }
+  };
 
   const refreshData = () => {
     loadPersistedData();
@@ -41,15 +91,12 @@ export default function AdminAbsensiPage() {
         if (savedAbs) {
           const parsed: AbsensiRecord[] = JSON.parse(savedAbs);
           if (Array.isArray(parsed)) {
-            // Auto cleanup verified photos > 24 hours
             const { updated, cleanedCount } = cleanupExpiredVerifiedPhotos(parsed);
             if (cleanedCount > 0) {
               savePersistedAbsensi(updated);
             }
             setAbsensiList(updated);
           }
-        } else {
-          setAbsensiList([]);
         }
 
         const savedGurus = localStorage.getItem('muallim_guru_list');
@@ -67,33 +114,14 @@ export default function AdminAbsensiPage() {
 
   useEffect(() => {
     refreshData();
+    fetchLiveSupabaseData();
 
-    import('@/lib/supabaseClient').then(({ getAbsensiSupabase, getGurusSupabase, getAppSettingsSupabase }) => {
-      getAppSettingsSupabase().then((s) => {
-        if (s) setAppSettings(s);
-      }).catch(() => {});
+    // Auto-polling every 4 seconds so teacher attendance updates live
+    const interval = setInterval(() => {
+      fetchLiveSupabaseData();
+    }, 4000);
 
-      getAbsensiSupabase().then((data) => {
-        if (data !== null && data !== undefined) {
-          // Auto cleanup verified photos > 24 hours
-          const { updated, cleanedCount } = cleanupExpiredVerifiedPhotos(data);
-          if (cleanedCount > 0) {
-            savePersistedAbsensi(updated);
-          }
-          setAbsensiList(updated);
-          mockAbsensi.length = 0;
-          mockAbsensi.push(...updated);
-        }
-      }).catch(() => {});
-
-      getGurusSupabase().then((gurus) => {
-        if (gurus && gurus.length > 0) {
-          setGuruList(gurus);
-          mockGuru.length = 0;
-          mockGuru.push(...gurus);
-        }
-      }).catch(() => {});
-    }).catch(() => {});
+    return () => clearInterval(interval);
   }, []);
 
   const handleVerifyPhoto = async (recordId: string, status: 'verified' | 'rejected') => {
@@ -258,6 +286,30 @@ export default function AdminAbsensiPage() {
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => fetchLiveSupabaseData(true)}
+            disabled={isRefreshing}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontWeight: 700,
+              fontSize: '12px',
+              padding: '6px 12px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border)',
+              backgroundColor: 'var(--color-surface)',
+              color: 'var(--color-text-secondary)',
+              transition: 'all 0.15s ease',
+              boxShadow: 'var(--shadow-xs)',
+            }}
+            title="Segarkan data absensi terbaru"
+          >
+            <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} /> {isRefreshing ? 'Memuat...' : 'Segarkan'}
+          </button>
+
           <div style={{
             background: 'var(--color-surface-2)',
             padding: '6px 12px',

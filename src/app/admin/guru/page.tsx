@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Users, Search, Plus, CheckCircle2, Clock, XCircle, X, Shield, Key, Mail, Phone, UserCheck, AlertCircle, Copy, Check, DollarSign, Trash2 } from 'lucide-react';
+import { Users, Search, Plus, CheckCircle2, Clock, XCircle, X, Shield, Key, Mail, Phone, UserCheck, AlertCircle, Copy, Check, DollarSign, Trash2, Edit2, Save } from 'lucide-react';
 import { mockGuru, hitungSkorKedisiplinan, authConfig, savePersistedGuru, loadPersistedData, mockAbsensi, mockSettings, mockJadwalMatrix, savePersistedJadwalMatrix, syncMatrixToJadwal } from '@/lib/mockData';
 import { getInitials, generateNipYayasan, formatRupiah, formatJamLengkap } from '@/lib/utils';
 import { sendTeacherWelcomeEmail } from '@/lib/emailService';
@@ -21,6 +21,22 @@ export default function AdminGuruPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [guruToDelete, setGuruToDelete] = useState<Guru | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // State Edit Guru Modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingGuru, setEditingGuru] = useState<Guru | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    id: '',
+    nama: '',
+    email: '',
+    nip: '',
+    jabatan: 'Ustadz',
+    statusKepegawaian: 'tetap' as 'tetap' | 'honorer' | 'magang',
+    telepon: '',
+    alamat: '',
+    aktif: true,
+  });
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   useEffect(() => {
     loadPersistedData();
@@ -83,6 +99,70 @@ export default function AdminGuruPage() {
       alamat: 'Makassar',
     });
     setShowAddModal(true);
+  };
+
+  // Open Edit Modal with selected teacher data
+  const openEditModal = (guru: Guru) => {
+    setEditingGuru(guru);
+    setEditFormData({
+      id: guru.id,
+      nama: guru.nama || '',
+      email: guru.email || '',
+      nip: guru.nip || '',
+      jabatan: guru.jabatan || 'Ustadz',
+      statusKepegawaian: guru.statusKepegawaian || 'tetap',
+      telepon: guru.telepon || '',
+      alamat: guru.alamat || '',
+      aktif: guru.aktif ?? true,
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEditGuru = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingGuru || !editFormData.nama.trim() || !editFormData.email.trim() || isSavingEdit) return;
+
+    // Check duplicate email against other teachers
+    const trimmedEmail = editFormData.email.trim().toLowerCase();
+    const isEmailDuplicate = guruList.some((g) => g.id !== editingGuru.id && g.email.toLowerCase() === trimmedEmail);
+    if (isEmailDuplicate) {
+      alert(`Email "${trimmedEmail}" sudah digunakan oleh guru lain.`);
+      return;
+    }
+
+    setIsSavingEdit(true);
+
+    const updatedGuru: Guru = {
+      ...editingGuru,
+      nama: editFormData.nama.trim(),
+      email: trimmedEmail,
+      nip: editFormData.nip.trim(),
+      jabatan: editFormData.jabatan,
+      statusKepegawaian: editFormData.statusKepegawaian,
+      telepon: editFormData.telepon.trim(),
+      alamat: editFormData.alamat.trim(),
+      aktif: editFormData.aktif,
+    };
+
+    // 1. Update in-memory & local state
+    const nextList = guruList.map((g) => (g.id === updatedGuru.id ? updatedGuru : g));
+    setGuruList(nextList);
+    mockGuru.length = 0;
+    mockGuru.push(...nextList);
+    savePersistedGuru(nextList);
+
+    // 2. Update Supabase
+    try {
+      await upsertGuruSupabase(updatedGuru);
+    } catch (err) {
+      console.warn('Sync to Supabase error:', err);
+    }
+
+    setIsSavingEdit(false);
+    setShowEditModal(false);
+    setEditingGuru(null);
+    setToastMessage(`✓ Data guru ${updatedGuru.nama} berhasil diperbarui.`);
+    setTimeout(() => setToastMessage(null), 3500);
   };
 
   const handleAddGuru = async (e: React.FormEvent) => {
@@ -404,16 +484,38 @@ export default function AdminGuruPage() {
                             <span style={{ fontWeight: 700, fontSize: 'var(--font-size-xs)' }}>{skor.skor}%</span>
                           </div>
                         </td>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <Link href={`/admin/laporan?tab=rekap&guruId=${encodeURIComponent(g.id)}`} className="btn btn-ghost btn-sm" style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', padding: '4px 8px' }}>
+                        <td style={{ textAlign: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => openEditModal(g)}
+                              style={{
+                                padding: '5px 10px',
+                                fontSize: 11,
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                borderRadius: 'var(--radius-sm)'
+                              }}
+                              title={`Edit data ${g.nama}`}
+                            >
+                              <Edit2 size={12} /> Edit
+                            </button>
+                            <Link
+                              href={`/admin/guru/${g.id}`}
+                              className="btn btn-ghost btn-sm"
+                              style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-primary)', padding: '5px 8px' }}
+                              title={`Lihat detail ${g.nama}`}
+                            >
                               Detail →
                             </Link>
                             <button
                               type="button"
                               className="btn btn-ghost btn-sm"
                               onClick={() => setGuruToDelete(g)}
-                              style={{ padding: '4px 8px', color: 'var(--color-danger)' }}
+                              style={{ padding: '5px 8px', color: 'var(--color-danger)' }}
                               title={`Hapus ${g.nama}`}
                             >
                               <Trash2 size={14} />
@@ -610,7 +712,178 @@ export default function AdminGuruPage() {
         </div>
       )}
 
-      {/* ─── MODAL KONFIRMASI HAPUS GURU ─── */}
+      {/* ─── MODAL EDIT DATA GURU ─── */}
+      {showEditModal && editingGuru && (
+        <div className="modal-overlay" onClick={() => !isSavingEdit && setShowEditModal(false)}>
+          <div className="modal" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 'var(--radius-md)', background: 'var(--color-primary-light)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Edit2 size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: 'var(--font-size-base)', fontWeight: 800 }}>Edit Data Guru</h3>
+                  <p style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>Perbarui informasi ustadz/ustadzah</p>
+                </div>
+              </div>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowEditModal(false)} disabled={isSavingEdit} style={{ padding: 4 }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditGuru}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+
+                {/* Nama Lengkap */}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: 11, fontWeight: 700 }}>
+                    Nama Lengkap <span style={{ color: 'red' }}>*</span>
+                  </label>
+                  <input
+                    className="form-input"
+                    placeholder="Contoh: Ustadz Ahmad Hidayat, S.Pd.I"
+                    value={editFormData.nama}
+                    onChange={(e) => setEditFormData({ ...editFormData, nama: e.target.value })}
+                    required
+                    autoFocus
+                    style={{ fontSize: 13 }}
+                  />
+                </div>
+
+                {/* Email Login */}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: 11, fontWeight: 700 }}>
+                    Alamat Email Login <span style={{ color: 'red' }}>*</span>
+                  </label>
+                  <input
+                    type="email"
+                    className="form-input"
+                    placeholder="email@muallim.sch.id"
+                    value={editFormData.email}
+                    onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                    required
+                    style={{ fontSize: 13 }}
+                  />
+                </div>
+
+                {/* Grid: NIP & Jabatan */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: 11, fontWeight: 700 }}>NIP / ID Guru</label>
+                    <input
+                      className="form-input"
+                      value={editFormData.nip}
+                      onChange={(e) => setEditFormData({ ...editFormData, nip: e.target.value })}
+                      style={{ fontSize: 12, fontWeight: 600 }}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: 11, fontWeight: 700 }}>Panggilan / Jabatan</label>
+                    <select
+                      className="form-select"
+                      value={editFormData.jabatan}
+                      onChange={(e) => setEditFormData({ ...editFormData, jabatan: e.target.value })}
+                      style={{ fontSize: 12 }}
+                    >
+                      <option value="Ustadz">Ustadz</option>
+                      <option value="Ustadzah">Ustadzah</option>
+                      <option value="Pengajar Tahfidz">Pengajar Tahfidz</option>
+                      <option value="Guru Kelas">Guru Kelas</option>
+                      <option value="Koordinator Pengajar">Koordinator Pengajar</option>
+                      <option value="Kepala Yayasan">Kepala Yayasan</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Grid: Status & Keaktifan */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: 11, fontWeight: 700 }}>Status Kepegawaian</label>
+                    <select
+                      className="form-select"
+                      value={editFormData.statusKepegawaian}
+                      onChange={(e) => setEditFormData({ ...editFormData, statusKepegawaian: e.target.value as any })}
+                      style={{ fontSize: 12 }}
+                    >
+                      <option value="tetap">Pegawai Tetap</option>
+                      <option value="honorer">Tenaga Honorer</option>
+                      <option value="magang">Magang</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label" style={{ fontSize: 11, fontWeight: 700 }}>Status Akun</label>
+                    <select
+                      className="form-select"
+                      value={editFormData.aktif ? 'aktif' : 'nonaktif'}
+                      onChange={(e) => setEditFormData({ ...editFormData, aktif: e.target.value === 'aktif' })}
+                      style={{ fontSize: 12 }}
+                    >
+                      <option value="aktif">Aktif Mengajar</option>
+                      <option value="nonaktif">Non-aktif / Cuti</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Telepon */}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: 11, fontWeight: 700 }}>Nomor Telepon / WhatsApp</label>
+                  <input
+                    type="tel"
+                    className="form-input"
+                    placeholder="08xxxxxxxxxx"
+                    value={editFormData.telepon}
+                    onChange={(e) => setEditFormData({ ...editFormData, telepon: e.target.value })}
+                    style={{ fontSize: 12 }}
+                  />
+                </div>
+
+                {/* Alamat */}
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: 11, fontWeight: 700 }}>Alamat Tempat Tinggal</label>
+                  <textarea
+                    className="form-textarea"
+                    placeholder="Alamat lengkap domisili..."
+                    rows={2}
+                    value={editFormData.alamat}
+                    onChange={(e) => setEditFormData({ ...editFormData, alamat: e.target.value })}
+                    style={{ fontSize: 12 }}
+                  />
+                </div>
+
+              </div>
+
+              <div className="modal-footer" style={{ padding: 'var(--space-3) var(--space-4)' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setShowEditModal(false)}
+                  disabled={isSavingEdit}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-sm"
+                  disabled={isSavingEdit}
+                  style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  {isSavingEdit ? (
+                    <>
+                      <span className="animate-spin"><Clock size={14} /></span> Menyimpan...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={14} /> Simpan Perubahan
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       {guruToDelete && (
         <div className="modal-overlay" onClick={() => !isDeleting && setGuruToDelete(null)}>
           <div className="modal" style={{ maxWidth: 440 }} onClick={(e) => e.stopPropagation()}>
