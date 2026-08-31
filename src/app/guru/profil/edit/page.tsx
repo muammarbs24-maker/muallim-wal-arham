@@ -96,17 +96,46 @@ export default function EditProfilPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 3 * 1024 * 1024) {
-      setErrorMessage('Ukuran foto terlalu besar. Maksimal 3 MB.');
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorMessage('Ukuran foto terlalu besar. Maksimal 5 MB.');
       setTimeout(() => setErrorMessage(null), 4000);
       return;
     }
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      if (event.target?.result) {
-        setForm((prev) => ({ ...prev, foto: event.target?.result as string }));
-      }
+      const resultStr = event.target?.result as string;
+      if (!resultStr) return;
+
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 400;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxDim) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          }
+        } else {
+          if (height > maxDim) {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', 0.85);
+          setForm((prev) => ({ ...prev, foto: compressed }));
+        } else {
+          setForm((prev) => ({ ...prev, foto: resultStr }));
+        }
+      };
+      img.src = resultStr;
     };
     reader.readAsDataURL(file);
   };
@@ -170,7 +199,7 @@ export default function EditProfilPage() {
     saveProfileData(form.email.trim().toLowerCase());
   };
 
-  const saveProfileData = async (verifiedEmail: string) => {
+  const saveProfileData = (verifiedEmail: string) => {
     setLoading(true);
 
     const updatedGuru: Guru = {
@@ -182,7 +211,7 @@ export default function EditProfilPage() {
       alamat: form.alamat.trim(),
     };
 
-    // Update in-memory
+    // 1. Update in-memory INSTANTLY
     Object.assign(currentGuru, updatedGuru);
     const idx = mockGuru.findIndex((g) => g.id === updatedGuru.id);
     if (idx >= 0) {
@@ -191,7 +220,7 @@ export default function EditProfilPage() {
       mockGuru.push(updatedGuru);
     }
 
-    // Update localStorage
+    // 2. Update localStorage INSTANTLY
     if (typeof window !== 'undefined') {
       localStorage.setItem('muallim_guru_user', JSON.stringify(updatedGuru));
       localStorage.setItem('logged_in_guru_id', updatedGuru.id);
@@ -199,20 +228,18 @@ export default function EditProfilPage() {
       localStorage.setItem('muallim_guru_list', JSON.stringify(mockGuru));
     }
 
-    // Save to Supabase
-    try {
-      const { upsertGuruSupabase } = await import('@/lib/supabaseClient');
-      await upsertGuruSupabase(updatedGuru);
-    } catch (e) {
-      console.warn('Sync to Supabase:', e);
-    }
+    // 3. Save to Supabase in background
+    import('@/lib/supabaseClient').then(({ upsertGuruSupabase }) => {
+      upsertGuruSupabase(updatedGuru).catch((e) => console.warn('Sync to Supabase:', e));
+    }).catch(() => {});
 
+    // 4. Instant UI response & quick redirect
     setLoading(false);
     setShowSuccess(true);
     setTimeout(() => {
       setShowSuccess(false);
       router.push('/guru/profil');
-    }, 1500);
+    }, 400);
   };
 
   const handleResendOtp = () => {
